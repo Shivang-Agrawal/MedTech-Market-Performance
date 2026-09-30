@@ -1,0 +1,147 @@
+/// In-scope, active, unambiguous products only. Hierarchy: Category > Subcategory > Brand > Product.
+table DimProduct
+	lineageTag: e242122e-a40c-51ea-abc2-91cb42cad616
+
+	/// Normalised product code (key)
+	column ProductCode
+		dataType: string
+		lineageTag: 4bf851a2-7654-5f35-8866-14067069757e
+		summarizeBy: none
+		sourceColumn: ProductCode
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Display label: code | canonical description
+	column Product
+		dataType: string
+		lineageTag: 837ad5d1-65bf-5a68-bfff-c5d25f2b92eb
+		summarizeBy: none
+		sourceColumn: Product
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Canonical vendor description (most frequent)
+	column ProductName
+		dataType: string
+		lineageTag: eed79b96-f35e-5dbc-8408-6f6d29227392
+		summarizeBy: none
+		sourceColumn: ProductName
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Governed InternalBrand from Product_Scope
+	column Brand
+		dataType: string
+		lineageTag: 39111a04-3597-5032-8363-84de4e2d45be
+		summarizeBy: none
+		sourceColumn: Brand
+
+		annotation SummarizationSetBy = Automatic
+
+	column Category
+		dataType: string
+		lineageTag: c6d254ff-82cb-5705-8f96-0f614677ba2c
+		summarizeBy: none
+		sourceColumn: Category
+
+		annotation SummarizationSetBy = Automatic
+
+	column Subcategory
+		dataType: string
+		lineageTag: f3f2a53f-1096-5b54-929b-c903b0f60238
+		summarizeBy: none
+		sourceColumn: Subcategory
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Vendor-reported manufacturer of the product
+	column Manufacturer
+		dataType: string
+		lineageTag: 72195db8-e99f-5734-8d5c-7109e4a9f1c3
+		summarizeBy: none
+		sourceColumn: Manufacturer
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsOurCompanyProduct
+		dataType: boolean
+		lineageTag: 4b4f8f23-b918-54dc-a825-a1cad1224a75
+		summarizeBy: none
+		sourceColumn: IsOurCompanyProduct
+
+		annotation SummarizationSetBy = Automatic
+
+	column EffectiveFrom
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: 494b3df6-e036-5ffe-8374-00a5e8b01d0e
+		summarizeBy: none
+		sourceColumn: EffectiveFrom
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column EffectiveTo
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: 2aacba3d-af79-5c93-979e-6c4cdb1e8f0f
+		summarizeBy: none
+		sourceColumn: EffectiveTo
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	/// Number of distinct descriptions the vendor used for this code
+	column VendorDescriptionCount
+		dataType: int64
+		formatString: 0
+		lineageTag: dda22f12-d7c6-5919-9b52-33132749d24b
+		summarizeBy: none
+		sourceColumn: VendorDescriptionCount
+
+		annotation SummarizationSetBy = Automatic
+
+	hierarchy 'Product Hierarchy'
+		lineageTag: cc89a898-c255-54ab-845e-9c356821e733
+
+		level Category
+			lineageTag: 56618e52-e898-51d0-abe8-87bb4f9a89e7
+			column: Category
+
+		level Subcategory
+			lineageTag: 8708a867-9193-56b7-8b6f-baa2a886f126
+			column: Subcategory
+
+		level Brand
+			lineageTag: cc2420c2-cb8f-5e79-88f4-ce480ff6dffa
+			column: Brand
+
+		level Product
+			lineageTag: caea6e82-1204-5f36-a88b-b79fefdcbeb3
+			column: Product
+
+	partition DimProduct = m
+		mode: import
+		source =
+				let
+				    Source = Table.SelectRows(stg_ProductMapping, each [MappingStatus] = "Active"),
+				    JoinedDescription = Table.NestedJoin(Source, {"ProductCode"}, stg_CanonicalDescription, {"ProductCode"}, "Desc", JoinKind.LeftOuter),
+				    ExpandedDescription = Table.ExpandTableColumn(JoinedDescription, "Desc", {"CanonicalDescription", "DistinctDescriptions", "Manufacturer"}, {"ProductName", "VendorDescriptionCount", "Manufacturer"}),
+				    FilledName = Table.AddColumn(ExpandedDescription, "ProductNameFinal", each if [ProductName] = null then [ProductCode] else [ProductName], type text),
+				    AddedLabel = Table.AddColumn(FilledName, "Product", each [ProductCode] & " | " & [ProductNameFinal], type text),
+				    AddedIsCompany = Table.AddColumn(AddedLabel, "IsOurCompanyProduct", each [Manufacturer] = OurCompanyName, type logical),
+				    Selected = Table.SelectColumns(AddedIsCompany, {"ProductCode", "Product", "ProductNameFinal", "Brand", "Category", "Subcategory", "Manufacturer", "IsOurCompanyProduct", "EffectiveFrom", "EffectiveTo", "VendorDescriptionCount"}),
+				    Renamed = Table.RenameColumns(Selected, {{"ProductNameFinal", "ProductName"}}),
+				    Typed = Table.TransformColumnTypes(Renamed, {
+				        {"ProductCode", type text}, {"Product", type text}, {"ProductName", type text}, {"Brand", type text},
+				        {"Category", type text}, {"Subcategory", type text}, {"Manufacturer", type text},
+				        {"IsOurCompanyProduct", type logical}, {"EffectiveFrom", type date}, {"EffectiveTo", type date},
+				        {"VendorDescriptionCount", Int64.Type}}),
+				    Sorted = Table.Sort(Typed, {{"ProductCode", Order.Ascending}})
+				in
+				    Sorted
+
+	annotation PBI_ResultType = Table
+

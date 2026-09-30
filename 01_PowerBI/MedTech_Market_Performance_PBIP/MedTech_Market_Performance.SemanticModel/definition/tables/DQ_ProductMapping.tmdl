@@ -1,0 +1,171 @@
+/// One row per normalised product code seen in Product_Scope or the vendor feed, with the mapping decision.
+table DQ_ProductMapping
+	lineageTag: 8cb01a3d-fdca-5956-81ac-bdab3560db2c
+
+	column ProductCode
+		dataType: string
+		lineageTag: 2451959e-3312-53e8-8fb6-3cc80b0ec0c8
+		summarizeBy: none
+		sourceColumn: ProductCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column MappingStatus
+		dataType: string
+		lineageTag: 76b44862-11b0-5458-8b4a-fb365204e6f5
+		summarizeBy: none
+		sourceColumn: MappingStatus
+
+		annotation SummarizationSetBy = Automatic
+
+	column MappingReason
+		dataType: string
+		lineageTag: 0160283a-516d-50c6-8a7c-7211ab8a34db
+		summarizeBy: none
+		sourceColumn: MappingReason
+
+		annotation SummarizationSetBy = Automatic
+
+	column AcceptedInModel
+		dataType: string
+		lineageTag: b699fe09-37c5-596f-a46b-e30738e967dc
+		summarizeBy: none
+		sourceColumn: AcceptedInModel
+
+		annotation SummarizationSetBy = Automatic
+
+	column ScopeRowsRaw
+		dataType: int64
+		formatString: 0
+		lineageTag: 6dd72d12-3a34-5955-a4de-92d16b633a05
+		summarizeBy: none
+		sourceColumn: ScopeRowsRaw
+
+		annotation SummarizationSetBy = Automatic
+
+	column ScopeRowsDistinct
+		dataType: int64
+		formatString: 0
+		lineageTag: a69ce097-e444-5ac9-bfc7-02c5d2076a87
+		summarizeBy: none
+		sourceColumn: ScopeRowsDistinct
+
+		annotation SummarizationSetBy = Automatic
+
+	column ActiveRowsRaw
+		dataType: int64
+		formatString: 0
+		lineageTag: f1912e7a-f121-5f22-9f30-f4aa1acbfe62
+		summarizeBy: none
+		sourceColumn: ActiveRowsRaw
+
+		annotation SummarizationSetBy = Automatic
+
+	column ActiveMappings
+		dataType: int64
+		formatString: 0
+		lineageTag: 852c7ba0-218e-5720-a537-e7fefffd54ed
+		summarizeBy: none
+		sourceColumn: ActiveMappings
+
+		annotation SummarizationSetBy = Automatic
+
+	column MappingDetail
+		dataType: string
+		lineageTag: 992da916-f514-5fe1-959e-df4f5770e4b5
+		summarizeBy: none
+		sourceColumn: MappingDetail
+
+		annotation SummarizationSetBy = Automatic
+
+	/// De-duplicated vendor rows for this code
+	column VendorRows
+		dataType: int64
+		formatString: #,0
+		lineageTag: fdef5231-8682-5c83-b4fe-1952e64fdddc
+		summarizeBy: none
+		sourceColumn: VendorRows
+
+		annotation SummarizationSetBy = Automatic
+
+	column VendorSales
+		dataType: decimal
+		formatString: \$#,0.00;(\$#,0.00);\$#,0.00
+		lineageTag: 0107ef02-f8a6-5dbb-913b-1e5a224599ed
+		summarizeBy: none
+		sourceColumn: VendorSales
+
+		annotation SummarizationSetBy = Automatic
+
+	column RawCodeVariants
+		dataType: int64
+		formatString: 0
+		lineageTag: 5f2db899-f2b3-553a-ba48-bd70f410dd38
+		summarizeBy: none
+		sourceColumn: RawCodeVariants
+
+		annotation SummarizationSetBy = Automatic
+
+	column RowsWithCodeNormalised
+		dataType: int64
+		formatString: #,0
+		lineageTag: 84b058d2-e82a-5076-bfb6-9de4fb6a162b
+		summarizeBy: none
+		sourceColumn: RowsWithCodeNormalised
+
+		annotation SummarizationSetBy = Automatic
+
+	column DistinctDescriptions
+		dataType: int64
+		formatString: 0
+		lineageTag: adefef69-9e82-5c3e-b41f-d7bc1fb94bf1
+		summarizeBy: none
+		sourceColumn: DistinctDescriptions
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Sales a naive merge on the raw scope table would double-count
+	column NaiveJoinExtraSales
+		dataType: decimal
+		formatString: \$#,0.00;(\$#,0.00);\$#,0.00
+		lineageTag: 6f030dc3-d6c3-55f5-9f1f-f70654e45538
+		summarizeBy: none
+		sourceColumn: NaiveJoinExtraSales
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DQ_ProductMapping = m
+		mode: import
+		source =
+				let
+				    VendorRows = Table.SelectRows(stg_VendorAudit, each not [IsDuplicate]),
+				    VendorStats = Table.Group(VendorRows, {"ProductCode"}, {
+				        {"VendorRows", each Table.RowCount(_), Int64.Type},
+				        {"VendorSales", each List.Sum([SalesAmount]), Currency.Type},
+				        {"RawCodeVariants", each List.Count(List.Distinct([ProductCodeRaw])), Int64.Type},
+				        {"RowsWithCodeNormalised", each List.Count(List.Select([CodeWasNormalised], each _)), Int64.Type},
+				        {"DistinctDescriptions", each List.Count(List.Distinct([ProductDescription])), Int64.Type}}),
+				    RenamedVendorKey = Table.RenameColumns(VendorStats, {{"ProductCode", "VendorProductCode"}}),
+				    Joined = Table.NestedJoin(stg_ProductMapping, {"ProductCode"}, RenamedVendorKey, {"VendorProductCode"}, "V", JoinKind.FullOuter),
+				    Expanded = Table.ExpandTableColumn(Joined, "V", {"VendorProductCode", "VendorRows", "VendorSales", "RawCodeVariants", "RowsWithCodeNormalised", "DistinctDescriptions"}),
+				    AddedCode = Table.AddColumn(Expanded, "Code", each if [ProductCode] = null then [VendorProductCode] else [ProductCode], type text),
+				    AddedStatus = Table.AddColumn(AddedCode, "Status", each if [MappingStatus] = null then "Unmapped" else [MappingStatus], type text),
+				    AddedReason = Table.AddColumn(AddedStatus, "Reason", each if [MappingStatus] = null then "Code present in vendor feed but not in Product_Scope" else [MappingReason], type text),
+				    AddedAccepted = Table.AddColumn(AddedReason, "AcceptedInModel", each if [Status] = "Active" then "Yes" else "No", type text),
+				    // Sales that a naive merge on the raw scope table would have double-counted (join fan-out)
+				    AddedFanOut = Table.AddColumn(AddedAccepted, "NaiveJoinExtraSales", each
+				        if [ActiveRowsRaw] <> null and [ActiveRowsRaw] > 1 and [VendorSales] <> null then [VendorSales] * ([ActiveRowsRaw] - 1) else 0, Currency.Type),
+				    Selected = Table.SelectColumns(AddedFanOut, {"Code", "Status", "Reason", "AcceptedInModel", "ScopeRowsRaw", "ScopeRowsDistinct", "ActiveRowsRaw", "ActiveMappings", "MappingDetail", "VendorRows", "VendorSales", "RawCodeVariants", "RowsWithCodeNormalised", "DistinctDescriptions", "NaiveJoinExtraSales"}),
+				    RenamedCode = Table.RenameColumns(Selected, {{"Code", "ProductCode"}, {"Status", "MappingStatus"}, {"Reason", "MappingReason"}}),
+				    ReplacedNulls = Table.ReplaceValue(RenamedCode, null, 0, Replacer.ReplaceValue, {"ScopeRowsRaw", "ScopeRowsDistinct", "ActiveRowsRaw", "ActiveMappings", "VendorRows", "VendorSales", "RawCodeVariants", "RowsWithCodeNormalised", "DistinctDescriptions"}),
+				    Typed = Table.TransformColumnTypes(ReplacedNulls, {
+				        {"ProductCode", type text}, {"MappingStatus", type text}, {"MappingReason", type text}, {"AcceptedInModel", type text},
+				        {"ScopeRowsRaw", Int64.Type}, {"ScopeRowsDistinct", Int64.Type}, {"ActiveRowsRaw", Int64.Type}, {"ActiveMappings", Int64.Type},
+				        {"MappingDetail", type text}, {"VendorRows", Int64.Type}, {"VendorSales", Currency.Type}, {"RawCodeVariants", Int64.Type},
+				        {"RowsWithCodeNormalised", Int64.Type}, {"DistinctDescriptions", Int64.Type}, {"NaiveJoinExtraSales", Currency.Type}}),
+				    Sorted = Table.Sort(Typed, {{"ProductCode", Order.Ascending}})
+				in
+				    Sorted
+
+	annotation PBI_ResultType = Table
+

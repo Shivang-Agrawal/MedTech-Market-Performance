@@ -1,0 +1,34 @@
+/// Refresh audit (UTC timestamp captured by Power Query at refresh time).
+table RefreshInfo
+	lineageTag: e41d8c80-b67f-5351-b0f7-ac84d720fcf7
+
+	column RefreshTimestampUTC
+		dataType: dateTime
+		formatString: dd-mmm-yyyy hh:nn
+		lineageTag: 29efc203-ebf5-502e-933e-cfb6270b4002
+		summarizeBy: none
+		sourceColumn: RefreshTimestampUTC
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = DateTime
+
+	column SourceFileName
+		dataType: string
+		lineageTag: eef9c9c4-db86-52e4-9c0a-931669f5fd9c
+		summarizeBy: none
+		sourceColumn: SourceFileName
+
+		annotation SummarizationSetBy = Automatic
+
+	partition RefreshInfo = m
+		mode: import
+		source =
+				let
+				    Source = #table(type table [RefreshTimestampUTC = datetime, SourceFileName = text], {
+				        {DateTimeZone.RemoveZone(DateTimeZone.UtcNow()), List.Last(Text.Split(SourceFilePath, "\"))}})
+				in
+				    Source
+
+	annotation PBI_ResultType = Table
+

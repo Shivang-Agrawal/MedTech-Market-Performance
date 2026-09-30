@@ -1,0 +1,265 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "dq_period_table",
+  "position": {
+    "x": 546,
+    "y": 428,
+    "z": 2000,
+    "height": 400,
+    "width": 718,
+    "tabOrder": 2000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "MonthLabel"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.MonthLabel",
+              "nativeQueryRef": "MonthLabel"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "DeliveredRows"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.DeliveredRows",
+              "nativeQueryRef": "DeliveredRows"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "AcceptedRows"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.AcceptedRows",
+              "nativeQueryRef": "AcceptedRows"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "LastTransactionDate"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.LastTransactionDate",
+              "nativeQueryRef": "LastTransactionDate"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "VolumeRatio"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.VolumeRatio",
+              "nativeQueryRef": "VolumeRatio"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "CoverageCheckPassed"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.CoverageCheckPassed",
+              "nativeQueryRef": "CoverageCheckPassed"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "VolumeCheckPassed"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.VolumeCheckPassed",
+              "nativeQueryRef": "VolumeCheckPassed"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "PeriodStatus"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.PeriodStatus",
+              "nativeQueryRef": "PeriodStatus"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_PeriodCompleteness"
+                    }
+                  },
+                  "Property": "CompletenessReason"
+                }
+              },
+              "queryRef": "DQ_PeriodCompleteness.CompletenessReason",
+              "nativeQueryRef": "CompletenessReason"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "DQ_PeriodCompleteness"
+                  }
+                },
+                "Property": "MonthLabel"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ]
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            },
+            "bold": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Period completeness (coverage within 3 days of month end AND volume >= 80% of trailing 3-month average)'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#FFFFFF'"
+                    }
+                  }
+                }
+              }
+            },
+            "transparency": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#D9DEE4'"
+                    }
+                  }
+                }
+              }
+            },
+            "radius": {
+              "expr": {
+                "Literal": {
+                  "Value": "6D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

@@ -1,0 +1,24 @@
+/// Disconnected parameter table for the dynamic Top N brands slicer (3-10).
+table 'Top N'
+	lineageTag: 6c4d30c3-4600-50ff-9901-d36093b5caef
+
+	/// Choose N for the Top N brands visual
+	column 'Top N'
+		dataType: int64
+		formatString: 0
+		lineageTag: d64f9aad-2f74-5da6-add1-9287b95f78d0
+		summarizeBy: none
+		sourceColumn: Top N
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'Top N' = m
+		mode: import
+		source =
+				let
+				    Source = Table.FromList({3..10}, Splitter.SplitByNothing(), type table [#"Top N" = Int64.Type])
+				in
+				    Source
+
+	annotation PBI_ResultType = Table
+

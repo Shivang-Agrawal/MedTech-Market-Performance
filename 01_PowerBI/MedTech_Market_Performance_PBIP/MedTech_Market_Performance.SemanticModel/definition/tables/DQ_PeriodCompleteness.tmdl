@@ -1,0 +1,209 @@
+/// Monthly delivery completeness assessment (coverage + volume rules).
+table DQ_PeriodCompleteness
+	lineageTag: 0c9802e4-e0c2-50ab-b597-89a3bd312c5d
+
+	column MonthStart
+		dataType: dateTime
+		formatString: mmm yyyy
+		lineageTag: dafd81fd-5cad-5a2e-a0a6-b4d0c7ac776e
+		summarizeBy: none
+		sourceColumn: MonthStart
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DeliveredRows
+		dataType: int64
+		formatString: #,0
+		lineageTag: f42fe37c-0fd6-548c-ba0c-e53aa366dcd3
+		summarizeBy: none
+		sourceColumn: DeliveredRows
+
+		annotation SummarizationSetBy = Automatic
+
+	column AcceptedRows
+		dataType: int64
+		formatString: #,0
+		lineageTag: 20219de1-2cf8-5624-8679-521b91081a51
+		summarizeBy: none
+		sourceColumn: AcceptedRows
+
+		annotation SummarizationSetBy = Automatic
+
+	column FirstTransactionDate
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: eb3875e1-7b0b-5115-aad1-40d852ac42df
+		summarizeBy: none
+		sourceColumn: FirstTransactionDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column LastTransactionDate
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: 75e5abc5-77b3-54c4-ace3-2d1cde3e16f2
+		summarizeBy: none
+		sourceColumn: LastTransactionDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DistinctTransactionDays
+		dataType: int64
+		formatString: 0
+		lineageTag: c4799e64-e8cf-5cff-b34c-fece2f3fd976
+		summarizeBy: none
+		sourceColumn: DistinctTransactionDays
+
+		annotation SummarizationSetBy = Automatic
+
+	column BatchCount
+		dataType: int64
+		formatString: 0
+		lineageTag: 28476ca7-006d-57cc-92ce-6c60bb7a090d
+		summarizeBy: none
+		sourceColumn: BatchCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column Trailing3MonthAvgRows
+		dataType: double
+		formatString: #,0.0
+		lineageTag: 9f74c328-55c4-5930-a690-d50681ce46b2
+		summarizeBy: none
+		sourceColumn: Trailing3MonthAvgRows
+
+		annotation SummarizationSetBy = Automatic
+
+	column VolumeRatio
+		dataType: double
+		formatString: 0.0%
+		lineageTag: 7d2deb3d-1dd5-5cb0-82b6-741e2199b55b
+		summarizeBy: none
+		sourceColumn: VolumeRatio
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthEnd
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: 34bd8ed4-99ea-5275-b0c3-da713752ed4f
+		summarizeBy: none
+		sourceColumn: MonthEnd
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DaysBeforeMonthEnd
+		dataType: int64
+		formatString: 0
+		lineageTag: 984e8982-558c-5b01-a444-b142593c1482
+		summarizeBy: none
+		sourceColumn: DaysBeforeMonthEnd
+
+		annotation SummarizationSetBy = Automatic
+
+	column CoverageCheckPassed
+		dataType: boolean
+		lineageTag: 7a91d748-1f67-50a2-b4e2-aab779d6a6d9
+		summarizeBy: none
+		sourceColumn: CoverageCheckPassed
+
+		annotation SummarizationSetBy = Automatic
+
+	column VolumeCheckPassed
+		dataType: boolean
+		lineageTag: 3fcfe7ce-7c50-54ec-9cd0-95285a1ab365
+		summarizeBy: none
+		sourceColumn: VolumeCheckPassed
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsComplete
+		dataType: boolean
+		lineageTag: 3905ec3c-9619-5a50-bb1c-d1f656bdd013
+		summarizeBy: none
+		sourceColumn: IsComplete
+
+		annotation SummarizationSetBy = Automatic
+
+	column PeriodStatus
+		dataType: string
+		lineageTag: b1d246df-bd5a-545c-939b-fecd367e1649
+		summarizeBy: none
+		sourceColumn: PeriodStatus
+
+		annotation SummarizationSetBy = Automatic
+
+	column CompletenessReason
+		dataType: string
+		lineageTag: 40ff1351-9f3c-5a69-9555-2111e149ab0e
+		summarizeBy: none
+		sourceColumn: CompletenessReason
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthLabel
+		dataType: string
+		lineageTag: a846647f-3834-5a8f-b3ea-b5ef475bb61b
+		summarizeBy: none
+		sourceColumn: MonthLabel
+		sortByColumn: YearMonthKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonthKey
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: d7ec0dd0-10af-5015-bce4-471001507de6
+		summarizeBy: none
+		sourceColumn: YearMonthKey
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DQ_PeriodCompleteness = m
+		mode: import
+		source =
+				let
+				    // Completeness is a property of the vendor delivery, so it is measured on all de-duplicated rows
+				    Source = Table.SelectRows(stg_VendorAudit, each not [IsDuplicate]),
+				    Grouped = Table.Group(Source, {"MonthStart"}, {
+				        {"DeliveredRows", each Table.RowCount(_), Int64.Type},
+				        {"AcceptedRows", each List.Count(List.Select([RowStatus], each _ = "Accepted")), Int64.Type},
+				        {"FirstTransactionDate", each List.Min([TransactionDate]), type date},
+				        {"LastTransactionDate", each List.Max([TransactionDate]), type date},
+				        {"DistinctTransactionDays", each List.Count(List.Distinct([TransactionDate])), Int64.Type},
+				        {"BatchCount", each List.Count(List.Distinct([BatchID])), Int64.Type}}),
+				    Sorted = Table.Buffer(Table.Sort(Grouped, {{"MonthStart", Order.Ascending}})),
+				    RowList = List.Buffer(Sorted[DeliveredRows]),
+				    Indexed = Table.AddIndexColumn(Sorted, "MonthIndex", 0, 1, Int64.Type),
+				    AddedTrailingAvg = Table.AddColumn(Indexed, "Trailing3MonthAvgRows", each
+				        if [MonthIndex] = 0 then null
+				        else List.Average(List.Range(RowList, List.Max({0, [MonthIndex] - 3}), List.Min({3, [MonthIndex]}))), type number),
+				    AddedVolumeRatio = Table.AddColumn(AddedTrailingAvg, "VolumeRatio", each if [Trailing3MonthAvgRows] = null then null else [DeliveredRows] / [Trailing3MonthAvgRows], type number),
+				    AddedMonthEnd = Table.AddColumn(AddedVolumeRatio, "MonthEnd", each Date.EndOfMonth([MonthStart]), type date),
+				    AddedDaysShort = Table.AddColumn(AddedMonthEnd, "DaysBeforeMonthEnd", each Duration.Days([MonthEnd] - [LastTransactionDate]), Int64.Type),
+				    AddedCoverageCheck = Table.AddColumn(AddedDaysShort, "CoverageCheckPassed", each [DaysBeforeMonthEnd] <= CompletenessCoverageToleranceDays, type logical),
+				    AddedVolumeCheck = Table.AddColumn(AddedCoverageCheck, "VolumeCheckPassed", each [VolumeRatio] = null or [VolumeRatio] >= CompletenessVolumeThreshold, type logical),
+				    AddedIsComplete = Table.AddColumn(AddedVolumeCheck, "IsComplete", each [CoverageCheckPassed] and [VolumeCheckPassed], type logical),
+				    AddedStatus = Table.AddColumn(AddedIsComplete, "PeriodStatus", each if [IsComplete] then "Complete" else "Incomplete", type text),
+				    AddedReason = Table.AddColumn(AddedStatus, "CompletenessReason", each
+				        if [IsComplete] then "Coverage and volume checks passed"
+				        else Text.Combine(List.RemoveNulls({
+				            if [CoverageCheckPassed] then null else "Data ends " & Date.ToText([LastTransactionDate], [Format = "dd-MMM-yyyy", Culture = "en-US"]) & " (" & Text.From([DaysBeforeMonthEnd]) & " days before month end)",
+				            if [VolumeCheckPassed] then null else "Volume " & Number.ToText([VolumeRatio], "P0", "en-US") & " of trailing 3-month average"}), "; "), type text),
+				    AddedMonthLabel = Table.AddColumn(AddedReason, "MonthLabel", each Date.ToText([MonthStart], [Format = "MMM yyyy", Culture = "en-US"]), type text),
+				    AddedYearMonthKey = Table.AddColumn(AddedMonthLabel, "YearMonthKey", each Date.Year([MonthStart]) * 100 + Date.Month([MonthStart]), Int64.Type),
+				    RemovedIndex = Table.RemoveColumns(AddedYearMonthKey, {"MonthIndex"})
+				in
+				    RemovedIndex
+
+	annotation PBI_ResultType = Exception
+

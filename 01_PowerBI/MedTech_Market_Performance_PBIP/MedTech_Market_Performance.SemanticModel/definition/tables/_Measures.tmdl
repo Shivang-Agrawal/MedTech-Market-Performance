@@ -1,0 +1,525 @@
+/// Home table for all report measures.
+table _Measures
+	lineageTag: 9ea0a813-2be2-56dd-a350-e1c303f73e90
+
+	/// Sum of accepted SalesAmount in the current filter context (respects manufacturer filters).
+	measure 'Sales Amount' = SUM ( FactSales[SalesAmount] )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 1. Core KPIs
+		lineageTag: 18dfaf05-8e4b-55c4-8990-2fbd5f94d8e1
+
+	/// Total in-scope market sales (all manufacturers). Ignores manufacturer filters so share is always vs. the whole market.
+	measure 'Market Sales' = CALCULATE ( [Sales Amount], REMOVEFILTERS ( DimManufacturer ) )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 1. Core KPIs
+		lineageTag: 4d2f85bd-fec7-5426-9163-68dcbc41425f
+
+	/// Sales where Manufacturer = Our Company (parameter OurCompanyName).
+	measure 'Company Sales' = CALCULATE ( [Sales Amount], KEEPFILTERS ( DimManufacturer[IsOurCompany] = TRUE () ) )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 1. Core KPIs
+		lineageTag: 58ee7357-518d-59e3-84da-3225beda6306
+
+	/// Market Sales less Company Sales.
+	measure 'Competitor Sales' = [Market Sales] - [Company Sales]
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 1. Core KPIs
+		lineageTag: 16487deb-a687-526d-98b6-d3c143d34b0d
+
+	/// Company Sales / Market Sales. Returns 0% (not blank) where the market exists but the company has no sales.
+	measure 'Market Share %' = DIVIDE ( [Company Sales] + 0, [Market Sales] )
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: 1. Core KPIs
+		lineageTag: c518cd23-a37d-5808-b2be-4f38a1c2cbe0
+
+	/// Units across all manufacturers.
+	measure 'Market Units' = CALCULATE ( SUM ( FactSales[Units] ), REMOVEFILTERS ( DimManufacturer ) )
+		formatString: #,0
+		displayFolder: 1. Core KPIs
+		lineageTag: f6031c99-1574-5c2d-9fbc-897d0fb62607
+
+	/// Units for Our Company.
+	measure 'Company Units' = CALCULATE ( SUM ( FactSales[Units] ), KEEPFILTERS ( DimManufacturer[IsOurCompany] = TRUE () ) )
+		formatString: #,0
+		displayFolder: 1. Core KPIs
+		lineageTag: 7f9b7875-c1a3-57ed-b20d-69ff949ea40a
+
+	/// Market Sales restricted to like-for-like months (complete this year AND complete last year).
+	measure 'Market Sales (YoY Basis)' = CALCULATE ( [Market Sales], KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 2. Time Intelligence
+		lineageTag: d860efc2-d398-5512-9832-b4c81a0e4533
+
+	/// Company Sales restricted to like-for-like months.
+	measure 'Company Sales (YoY Basis)' = CALCULATE ( [Company Sales], KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 2. Time Intelligence
+		lineageTag: bd11beb1-b9f5-5511-a99f-838b01e10cae
+
+	/// Prior-year Market Sales for the same like-for-like months. Incomplete months are never compared.
+	measure 'Market Sales PY' =
+			CALCULATE (
+			    CALCULATE ( [Market Sales], SAMEPERIODLASTYEAR ( DimDate[Date] ) ),
+			    KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () )
+			)
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 2. Time Intelligence
+		lineageTag: 8597c4e5-e45d-59e2-b8aa-a0dd23698807
+
+	/// Prior-year Company Sales for the same like-for-like months.
+	measure 'Company Sales PY' =
+			CALCULATE (
+			    CALCULATE ( [Company Sales], SAMEPERIODLASTYEAR ( DimDate[Date] ) ),
+			    KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () )
+			)
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 2. Time Intelligence
+		lineageTag: d32c0674-028d-564e-9873-36c657ba9fef
+
+	/// (Market Sales YoY basis - Market Sales PY) / Market Sales PY.
+	measure 'Market YoY Growth %' =
+			VAR _cy = [Market Sales (YoY Basis)]
+			VAR _py = [Market Sales PY]
+			RETURN
+			    IF ( NOT ISBLANK ( _cy ) && NOT ISBLANK ( _py ), DIVIDE ( _cy - _py, _py ) )
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: 2. Time Intelligence
+		lineageTag: 4a8e724c-02b6-574f-9e17-db181a291be4
+
+	/// (Company Sales YoY basis - Company Sales PY) / Company Sales PY.
+	measure 'Company YoY Growth %' =
+			VAR _cy = [Company Sales (YoY Basis)]
+			VAR _py = [Company Sales PY]
+			RETURN
+			    IF ( NOT ISBLANK ( _cy ) && NOT ISBLANK ( _py ), DIVIDE ( _cy - _py, _py ) )
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: 2. Time Intelligence
+		lineageTag: 36d3298c-dbab-54e2-a9b1-58f0471e577e
+
+	/// Market share over like-for-like months only.
+	measure 'Market Share % (YoY Basis)' = DIVIDE ( [Company Sales (YoY Basis)] + 0, [Market Sales (YoY Basis)] )
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: 2. Time Intelligence
+		lineageTag: 8c401dfc-ce1b-563c-80da-6006b9c57629
+
+	/// Prior-year market share over the same like-for-like months.
+	measure 'Market Share PY %' = DIVIDE ( [Company Sales PY] + 0, [Market Sales PY] )
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: 2. Time Intelligence
+		lineageTag: c44fe4ff-aa14-59d0-9cb2-1c4653db3f8b
+
+	/// Change in market share vs prior year, in percentage points.
+	measure 'Market Share Change (pp)' =
+			VAR _cy = IF ( NOT ISBLANK ( [Market Sales (YoY Basis)] ), [Market Share % (YoY Basis)] )
+			VAR _py = IF ( NOT ISBLANK ( [Market Sales PY] ), [Market Share PY %] )
+			RETURN
+			    IF ( NOT ISBLANK ( _cy ) && NOT ISBLANK ( _py ), ( _cy - _py ) * 100 )
+		formatString: +0.00" pp";-0.00" pp";0.00" pp"
+		displayFolder: 2. Time Intelligence
+		lineageTag: cfff2245-8e6f-5711-afcb-4999752dc9bd
+
+	/// Company Sales (YoY basis) minus Company Sales PY.
+	measure 'Company Sales Variance vs PY' =
+			VAR _py = [Company Sales PY]
+			RETURN
+			    IF ( NOT ISBLANK ( _py ), [Company Sales (YoY Basis)] - _py )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 2. Time Intelligence
+		lineageTag: 10b852fb-01d4-5d40-b3c6-2e8c4ac64cb8
+
+	/// Market Sales (YoY basis) minus Market Sales PY.
+	measure 'Market Sales Variance vs PY' =
+			VAR _py = [Market Sales PY]
+			RETURN
+			    IF ( NOT ISBLANK ( _py ), [Market Sales (YoY Basis)] - _py )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 2. Time Intelligence
+		lineageTag: 1058957c-c33e-525c-9bc9-0c5b744262e3
+
+	/// Additive decomposition of the market-share change. For any product/brand/geography slice i: ((c1 - S0*m1)/M1 - (c0 - S0*m0)/M0) x 100, where c = company sales, m = market sales of the slice, M = total selected market, S0 = prior-year share. Slices sum exactly to [Market Share Change (pp)]. Company products gaining market weight add share; competitor products gaining weight remove share.
+	measure 'Share Change Contribution (pp)' =
+			
+			VAR _MarketSel1 = CALCULATE ( [Market Sales (YoY Basis)], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+			VAR _MarketSel0 = CALCULATE ( [Market Sales PY], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+			VAR _CompanySel0 = CALCULATE ( [Company Sales PY], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+			VAR _Share0 = DIVIDE ( _CompanySel0, _MarketSel0 )
+			VAR _Company1 = [Company Sales (YoY Basis)] + 0
+			VAR _Market1 = [Market Sales (YoY Basis)] + 0
+			VAR _Company0 = [Company Sales PY] + 0
+			VAR _Market0 = [Market Sales PY] + 0
+			RETURN
+			    IF (
+			        NOT ISBLANK ( _MarketSel1 ) && NOT ISBLANK ( _MarketSel0 ) && ( _Market1 <> 0 || _Market0 <> 0 ),
+			        ( DIVIDE ( _Company1 - _Share0 * _Market1, _MarketSel1 ) - DIVIDE ( _Company0 - _Share0 * _Market0, _MarketSel0 ) ) * 100
+			    )
+		formatString: +0.00" pp";-0.00" pp";0.00" pp"
+		displayFolder: 3. Contribution
+		lineageTag: fa8f3d48-1a4d-501a-83c8-bd537a66e422
+
+	/// Change in the slice's weight of the selected market (m1/M1 - m0/M0) x 100.
+	measure 'Market Mix Weight Change (pp)' =
+			VAR _M1 = CALCULATE ( [Market Sales (YoY Basis)], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+			VAR _M0 = CALCULATE ( [Market Sales PY], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+			RETURN
+			    IF ( NOT ISBLANK ( _M1 ) && NOT ISBLANK ( _M0 ), ( DIVIDE ( [Market Sales (YoY Basis)] + 0, _M1 ) - DIVIDE ( [Market Sales PY] + 0, _M0 ) ) * 100 )
+		formatString: +0.00" pp";-0.00" pp";0.00" pp"
+		displayFolder: 3. Contribution
+		lineageTag: 209eb10c-0cac-55ac-89ce-b9277f542061
+
+	/// Selected N from the 'Top N' slicer (default 10).
+	measure 'Top N Value' = SELECTEDVALUE ( 'Top N'[Top N], 10 )
+		formatString: 0
+		displayFolder: 4. Top N
+		lineageTag: a77f0ec0-7b2a-5c8d-a8cd-2460e91ce34a
+
+	/// Dense rank of the brand by Market Sales within the current selection (slicers/filters respected).
+	measure 'Brand Rank' =
+			IF (
+			    ISINSCOPE ( DimProduct[Brand] ),
+			    RANKX ( ALLSELECTED ( DimProduct[Brand] ), [Market Sales], , DESC, DENSE )
+			)
+		formatString: 0
+		displayFolder: 4. Top N
+		lineageTag: 84eff2f7-ab20-5a26-8161-f17db5ad85a4
+
+	/// Market Sales for brands ranked within Top N; the total row sums only the Top N brands.
+	measure 'Top N Brand Market Sales' =
+			VAR _n = [Top N Value]
+			RETURN
+			    IF (
+			        ISINSCOPE ( DimProduct[Brand] ),
+			        IF ( [Brand Rank] <= _n, [Market Sales] ),
+			        CALCULATE ( [Market Sales], TOPN ( _n, ALLSELECTED ( DimProduct[Brand] ), [Market Sales], DESC ) )
+			    )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 4. Top N
+		lineageTag: e2eef693-fed3-539c-b67f-9da8e3afb754
+
+	/// Company Sales for the Top N brands (ranked by Market Sales).
+	measure 'Top N Brand Company Sales' =
+			VAR _n = [Top N Value]
+			RETURN
+			    IF (
+			        ISINSCOPE ( DimProduct[Brand] ),
+			        IF ( [Brand Rank] <= _n, [Company Sales] + 0 ),
+			        CALCULATE ( [Company Sales], TOPN ( _n, ALLSELECTED ( DimProduct[Brand] ), [Market Sales], DESC ) )
+			    )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 4. Top N
+		lineageTag: b9ef299b-a5cd-5f4e-82ee-7c7808c68685
+
+	/// Market share for the Top N brands.
+	measure 'Top N Brand Market Share %' = DIVIDE ( [Top N Brand Company Sales], [Top N Brand Market Sales] )
+		formatString: 0.00%;-0.00%;0.00%
+		displayFolder: 4. Top N
+		lineageTag: f0e065ce-ab03-5af0-89cc-ff4840f9f118
+
+	/// Dynamic visual title.
+	measure 'Top N Title' = "Top " & [Top N Value] & " brands by Market Sales (Company vs Market)"
+		displayFolder: 4. Top N
+		lineageTag: 5805a705-7796-521d-aa63-c7333094765d
+
+	/// Most recent month that passed both completeness checks.
+	measure 'Latest Complete Month' = CALCULATE ( MAX ( DimDate[MonthStart] ), REMOVEFILTERS ( DimDate ), DimDate[IsCompleteMonth] = TRUE () )
+		formatString: mmm yyyy
+		displayFolder: 5. Period & Completeness
+		lineageTag: 7d148bbf-d742-5329-a9c4-4228eb8f3b3f
+
+	/// Last transaction date delivered by the vendor.
+	measure 'Latest Data Date' = CALCULATE ( MAX ( DQ_PeriodCompleteness[LastTransactionDate] ), REMOVEFILTERS ( DQ_PeriodCompleteness ) )
+		formatString: dd-mmm-yyyy
+		displayFolder: 5. Period & Completeness
+		lineageTag: bd95a942-209a-5cec-bd7c-12e2003d4ccb
+
+	/// Number of delivered months failing completeness checks.
+	measure 'Incomplete Months' = CALCULATE ( COUNTROWS ( DQ_PeriodCompleteness ), REMOVEFILTERS ( DQ_PeriodCompleteness ), DQ_PeriodCompleteness[IsComplete] = FALSE () ) + 0
+		formatString: 0
+		displayFolder: 5. Period & Completeness
+		lineageTag: 0cf8c571-c2f4-501d-8399-1d8390264bae
+
+	/// Text banner for the executive page.
+	measure 'Complete Period Indicator' =
+			VAR _latest = [Latest Complete Month]
+			VAR _incomplete =
+			    CALCULATE (
+			        MAX ( DQ_PeriodCompleteness[MonthLabel] ),
+			        REMOVEFILTERS ( DQ_PeriodCompleteness ),
+			        DQ_PeriodCompleteness[IsComplete] = FALSE ()
+			    )
+			RETURN
+			    "Latest complete month: " & FORMAT ( _latest, "mmm yyyy" )
+			        & IF (
+			            NOT ISBLANK ( _incomplete ),
+			            "  |  " & _incomplete & " incomplete (data to " & FORMAT ( [Latest Data Date], "d mmm yyyy" ) & ") - excluded",
+			            ""
+			        )
+		displayFolder: 5. Period & Completeness
+		lineageTag: 252e7f8c-beb0-5f6d-9994-793cff7f4a4d
+
+	/// TRUE when the current date selection contains an incomplete month.
+	measure 'Selection Includes Incomplete Month' = CALCULATE ( COUNTROWS ( DimDate ), KEEPFILTERS ( DimDate[PeriodStatus] = "Incomplete" ) ) > 0
+		displayFolder: 5. Period & Completeness
+		lineageTag: a846c4e8-bb92-5a27-ba51-f77b4be7ee47
+
+	/// Warns users when partial data is in the selection.
+	measure 'Period Status Message' =
+			IF (
+			    [Selection Includes Incomplete Month],
+			    "WARNING: selection includes an incomplete month - totals are partial; YoY and share change use complete, like-for-like months only",
+			    "All selected months are complete"
+			)
+		displayFolder: 5. Period & Completeness
+		lineageTag: cae8c9fc-ee0f-5909-902e-683b11d7e930
+
+	/// Describes the like-for-like comparison window in the current selection.
+	measure 'Comparison Period Label' =
+			VAR _from = CALCULATE ( MIN ( DimDate[MonthStart] ), KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+			VAR _to = CALCULATE ( MAX ( DimDate[MonthStart] ), KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+			RETURN
+			    IF (
+			        ISBLANK ( _from ),
+			        "No like-for-like months in selection",
+			        FORMAT ( _from, "mmm yyyy" ) & " - " & FORMAT ( _to, "mmm yyyy" ) & "  vs  "
+			            & FORMAT ( EDATE ( _from, -12 ), "mmm yyyy" ) & " - " & FORMAT ( EDATE ( _to, -12 ), "mmm yyyy" )
+			    )
+		displayFolder: 5. Period & Completeness
+		lineageTag: fbcf9b00-dca9-59a0-b8ea-2eeab4ad97fe
+
+	/// All rows delivered in Vendor_Market_Data.
+	measure 'Raw Rows' = COUNTROWS ( DQ_RowAudit ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: 2cf8c20f-c43f-5b50-a7ca-3b301082c0be
+
+	/// Rows in FactSales.
+	measure 'Accepted Rows' = COUNTROWS ( FactSales ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: b453edc8-1f3c-5f8b-807b-a4f3ff13f003
+
+	/// Accepted rows counted from the audit table (cross-check).
+	measure 'Accepted Rows (Audit)' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Accepted" ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: f03b494a-f236-558c-bf87-f2f9f52c9727
+
+	/// Duplicate invoice lines removed.
+	measure 'Duplicate Rows Removed' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Duplicate" ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: 31150c66-b9fd-5d2a-a454-207b4bd18739
+
+	/// Rows for products flagged inactive.
+	measure 'Inactive Rows Rejected' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Inactive product" ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: 85a6a271-65b1-5479-bd98-c370e4db73d3
+
+	/// Rows for codes absent from Product_Scope.
+	measure 'Unmapped Rows Rejected' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Unmapped product" ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: 0fba6078-a5e8-549f-adcd-5faf62a81ad9
+
+	/// Rows quarantined because the product has conflicting active mappings.
+	measure 'Ambiguous Rows Rejected' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Ambiguous mapping" ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: ef7950ed-c124-592f-a40f-af4da4e5f180
+
+	/// Rows dated outside the mapping effective window.
+	measure 'Outside Window Rows Rejected' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Outside effective window" ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: dfcdd272-ea55-5cb9-9902-513ad6279b20
+
+	/// All rejected rows.
+	measure 'Rejected Rows' = [Raw Rows] - [Accepted Rows (Audit)]
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: 98dd4d9b-ae23-5235-a08d-829cfca077ab
+
+	/// Rejected rows as a share of raw rows.
+	measure 'Rejected Rows %' = DIVIDE ( [Rejected Rows], [Raw Rows] )
+		formatString: 0.0%
+		displayFolder: 6. Data Quality
+		lineageTag: 55f1c62a-2fc6-5a3b-a5a4-76be2ce277ef
+
+	/// Rows in context as a share of all raw rows (for status tables).
+	measure 'Row Share of Raw %' = DIVIDE ( COUNTROWS ( DQ_RowAudit ), CALCULATE ( COUNTROWS ( DQ_RowAudit ), REMOVEFILTERS ( DQ_RowAudit[RowStatus], DQ_RowAudit[StatusSortOrder] ) ) )
+		formatString: 0.0%
+		displayFolder: 6. Data Quality
+		lineageTag: 957dac52-bd05-56f9-a974-6cd05ed7345d
+
+	/// SalesAmount of every raw row (includes duplicates).
+	measure 'Raw Sales' = SUM ( DQ_RowAudit[SalesAmount] )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 6. Data Quality
+		lineageTag: cb032df0-8a3f-5298-9ce5-821284bbe19d
+
+	/// SalesAmount of rejected rows.
+	measure 'Rejected Sales' = CALCULATE ( SUM ( DQ_RowAudit[SalesAmount] ), DQ_RowAudit[RowStatus] <> "Accepted" )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 6. Data Quality
+		lineageTag: c814d71e-95fa-50af-830b-1d699edd5958
+
+	/// Raw - duplicates - inactive - unmapped - ambiguous - outside window - accepted. Must be 0.
+	measure 'Row Reconciliation Difference' = [Raw Rows] - [Duplicate Rows Removed] - [Inactive Rows Rejected] - [Unmapped Rows Rejected] - [Ambiguous Rows Rejected] - [Outside Window Rows Rejected] - [Accepted Rows]
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: bb839852-91b7-5d3d-80dd-de12bb46f12b
+
+	/// Raw sales - rejected sales - accepted (Market) sales. Must be 0.
+	measure 'Sales Reconciliation Difference' = [Raw Sales] - [Rejected Sales] - [Market Sales]
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 6. Data Quality
+		lineageTag: 552602c7-f015-5c0b-9afe-6eb30d426195
+
+	/// Rows whose product code needed trimming/upper-casing.
+	measure 'Rows With Normalised Code' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[CodeWasNormalised] = TRUE () ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: 69c2728c-4fe9-5bd9-9c29-af98c26a8871
+
+	/// Rows whose description differs from the canonical description.
+	measure 'Rows With Alternative Description' = CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[IsAltDescription] = TRUE () ) + 0
+		formatString: #,0
+		displayFolder: 6. Data Quality
+		lineageTag: a91b9695-af2a-55b7-90bf-99f7ea0518a9
+
+	/// Product codes delivered with more than one description.
+	measure 'Codes With Multiple Descriptions' = CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[DistinctDescriptions] > 1 ) + 0
+		formatString: 0
+		displayFolder: 6. Data Quality
+		lineageTag: f75271c8-0727-5019-910c-4f4e0120f149
+
+	/// Codes with conflicting active mappings.
+	measure 'Ambiguous Product Codes' = CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[MappingStatus] = "Ambiguous" ) + 0
+		formatString: 0
+		displayFolder: 6. Data Quality
+		lineageTag: 3eda700f-9f2d-5278-8753-1904e15de86e
+
+	/// Codes flagged inactive.
+	measure 'Inactive Product Codes' = CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[MappingStatus] = "Inactive" ) + 0
+		formatString: 0
+		displayFolder: 6. Data Quality
+		lineageTag: e06c590f-9b43-5aab-bce0-ebafa846d67c
+
+	/// Vendor codes not found in Product_Scope.
+	measure 'Unmapped Product Codes' = CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[MappingStatus] = "Unmapped" ) + 0
+		formatString: 0
+		displayFolder: 6. Data Quality
+		lineageTag: d37ac44f-46d7-549a-8c97-1a6e0beb90c2
+
+	/// Exact duplicate rows removed from Product_Scope.
+	measure 'Duplicate Scope Rows Collapsed' = SUM ( DQ_ProductMapping[ScopeRowsRaw] ) - SUM ( DQ_ProductMapping[ScopeRowsDistinct] )
+		formatString: 0
+		displayFolder: 6. Data Quality
+		lineageTag: 09565033-b606-5c0e-a91f-d2ecf6e164a8
+
+	/// Sales a naive (non-deduplicated) merge to Product_Scope would have double-counted.
+	measure 'Sales At Risk Of Double Count' = SUM ( DQ_ProductMapping[NaiveJoinExtraSales] )
+		formatString: \$#,0;(\$#,0);\$#,0
+		displayFolder: 6. Data Quality
+		lineageTag: bebf4d9e-2184-538f-a376-0b676250991e
+
+	/// When the dataset was last refreshed.
+	measure 'Refresh Timestamp (UTC)' = MAX ( RefreshInfo[RefreshTimestampUTC] )
+		formatString: dd-mmm-yyyy hh:nn
+		displayFolder: 6. Data Quality
+		lineageTag: 711ff0c1-669c-59ff-84e2-8f64bef68502
+
+	/// Refresh text for page headers.
+	measure 'Refresh Label' = "Refreshed " & FORMAT ( [Refresh Timestamp (UTC)], "dd-mmm-yyyy hh:nn" ) & " UTC"
+		displayFolder: 6. Data Quality
+		lineageTag: 9b4b418a-1591-5b6f-b03e-63147863ddf6
+
+	/// Expected value from ControlTotals.
+	measure 'Control Expected Value' = SUM ( ControlTotals[ExpectedValue] )
+		formatString: #,0.00
+		displayFolder: 6. Data Quality
+		lineageTag: b8c3b5ef-e3ba-5a65-a857-a117977f281b
+
+	/// Value produced by the model for the selected control metric (ignores date filters).
+	measure 'Control Model Value' =
+			VAR _metric = SELECTEDVALUE ( ControlTotals[Metric] )
+			VAR _month = IF ( LEFT ( _metric, 11 ) = "CleanSales_", MID ( _metric, 12, 7 ) )
+			RETURN
+			    SWITCH (
+			        TRUE (),
+			        _metric = "RawRows", CALCULATE ( [Raw Rows], REMOVEFILTERS ( DimDate ) ),
+			        _metric = "CleanRows", CALCULATE ( [Accepted Rows], REMOVEFILTERS ( DimDate ) ),
+			        _metric = "DuplicateTransactionsRemoved", CALCULATE ( [Duplicate Rows Removed], REMOVEFILTERS ( DimDate ) ),
+			        _metric = "InactiveOrUnmappedRejected", CALCULATE ( [Inactive Rows Rejected] + [Unmapped Rows Rejected] + [Outside Window Rows Rejected], REMOVEFILTERS ( DimDate ) ),
+			        _metric = "AmbiguousMappingRejected", CALCULATE ( [Ambiguous Rows Rejected], REMOVEFILTERS ( DimDate ) ),
+			        _metric = "CleanSales", CALCULATE ( [Market Sales], REMOVEFILTERS ( DimDate ) ),
+			        _metric = "CleanUnits", CALCULATE ( [Market Units], REMOVEFILTERS ( DimDate ) ),
+			        NOT ISBLANK ( _month ), CALCULATE ( [Market Sales], REMOVEFILTERS ( DimDate ), DimDate[YearMonth] = _month )
+			    )
+		formatString: #,0.00
+		displayFolder: 6. Data Quality
+		lineageTag: de19fbd1-5ae8-51cb-af59-1696cd0292a3
+
+	/// Model minus expected.
+	measure 'Control Difference' = IF ( NOT ISBLANK ( [Control Expected Value] ), [Control Model Value] - [Control Expected Value] )
+		formatString: #,0.00
+		displayFolder: 6. Data Quality
+		lineageTag: 3ae8ddbf-1898-5c54-a725-a2bc3820e68b
+
+	/// PASS when |difference| < 0.005.
+	measure 'Control Status' = IF ( NOT ISBLANK ( [Control Expected Value] ), IF ( ABS ( [Control Difference] ) < 0.005, "PASS", "FAIL" ) )
+		displayFolder: 6. Data Quality
+		lineageTag: 5f1000dd-075e-534b-8668-26e95d11449a
+
+	/// e.g. 27 of 27 control checks pass.
+	measure 'Control Checks Summary' =
+			VAR _total = COUNTROWS ( ALL ( ControlTotals[Metric] ) )
+			VAR _pass = COUNTROWS ( FILTER ( ALL ( ControlTotals[Metric] ), [Control Status] = "PASS" ) )
+			RETURN
+			    FORMAT ( _pass + 0, "0" ) & " of " & FORMAT ( _total, "0" ) & " control checks pass"
+			        & IF ( _pass < _total, "  (national/unsecured view required for full reconciliation)", "" )
+		displayFolder: 6. Data Quality
+		lineageTag: 1dc3c8ae-30e7-54b1-8df5-59a2786ac138
+
+	/// USERPRINCIPALNAME() of the viewer (use View as > Other user to test RLS).
+	measure 'Current User' = USERPRINCIPALNAME ()
+		displayFolder: 7. Security
+		lineageTag: 61f3af03-962c-56ef-8b95-a688fbababc0
+
+	/// Facilities visible to the current user after RLS.
+	measure 'Visible Facilities' = COUNTROWS ( DimFacility ) + 0
+		formatString: 0
+		displayFolder: 7. Security
+		lineageTag: 50bdd1c1-8c4d-5ebc-b696-d3685a56a56b
+
+	/// Describes the viewer's RLS scope.
+	measure 'Access Scope' =
+			VAR _user = LOWER ( USERPRINCIPALNAME () )
+			VAR _levels = CALCULATETABLE ( VALUES ( UserAccess[AccessLevel] ), UserAccess[UserEmail] = _user )
+			RETURN
+			    "Viewing as " & _user & "  |  "
+			        & IF ( ISEMPTY ( _levels ), "not in Facility_Access (author / unsecured view)", CONCATENATEX ( _levels, UserAccess[AccessLevel], ", " ) & " access" )
+			        & "  |  " & FORMAT ( [Visible Facilities], "0" ) & " facilities visible"
+		displayFolder: 7. Security
+		lineageTag: f5064f4d-8174-5699-a589-f2472322a43b
+
+	/// Placeholder column - table holds measures only
+	column MeasureHost
+		dataType: string
+		isHidden
+		lineageTag: 46734336-31ee-5e9f-94bd-7ac49735a495
+		summarizeBy: none
+		sourceColumn: MeasureHost
+
+		annotation SummarizationSetBy = Automatic
+
+	partition _Measures = m
+		mode: import
+		source =
+				let
+				    Source = #table(type table [MeasureHost = text], {})
+				in
+				    Source
+
+	annotation PBI_ResultType = Table
+

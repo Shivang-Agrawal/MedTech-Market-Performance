@@ -1,0 +1,76 @@
+/// Facility geography. RLS is applied on this table. Hierarchy: Region > State > Facility.
+table DimFacility
+	lineageTag: 1933c564-9f70-5b09-81aa-8ba6fb89b205
+
+	column FacilityID
+		dataType: string
+		lineageTag: 7b89ac2c-254e-5228-9ee4-fd3cb952c89f
+		summarizeBy: none
+		sourceColumn: FacilityID
+
+		annotation SummarizationSetBy = Automatic
+
+	column FacilityName
+		dataType: string
+		lineageTag: 924c5409-5e46-51d3-8b64-8fcdd93da251
+		summarizeBy: none
+		sourceColumn: FacilityName
+
+		annotation SummarizationSetBy = Automatic
+
+	column State
+		dataType: string
+		lineageTag: 90133c64-a5e4-56e5-b1f1-66ed77485eb0
+		summarizeBy: none
+		sourceColumn: State
+
+		annotation SummarizationSetBy = Automatic
+
+	column Region
+		dataType: string
+		lineageTag: 1929466e-0821-5581-b859-2b7a05074b1c
+		summarizeBy: none
+		sourceColumn: Region
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Display label: ID | name
+	column Facility
+		dataType: string
+		lineageTag: b6398431-e438-5308-ba77-79e154b2ed92
+		summarizeBy: none
+		sourceColumn: Facility
+
+		annotation SummarizationSetBy = Automatic
+
+	hierarchy Geography
+		lineageTag: a94757cb-59de-5eff-814d-e18089edd226
+
+		level Region
+			lineageTag: 4e6e78d0-1679-5146-971e-e65f0d067a01
+			column: Region
+
+		level State
+			lineageTag: 50e6dcd2-58b9-56fc-8574-2b62da94ba98
+			column: State
+
+		level Facility
+			lineageTag: e8908d05-c755-5a15-96fd-7f8af90e0dc3
+			column: Facility
+
+	partition DimFacility = m
+		mode: import
+		source =
+				let
+				    Source = Table.SelectRows(stg_VendorDedup, each not [IsDuplicate]),
+				    // Latest ingested attributes win if a facility is ever re-described by the vendor
+				    Sorted = Table.Sort(Source, {{"FacilityID", Order.Ascending}, {"IngestedAt", Order.Descending}}),
+				    Selected = Table.Buffer(Table.SelectColumns(Sorted, {"FacilityID", "FacilityName", "State", "Region"})),
+				    LatestPerFacility = Table.Distinct(Selected, {"FacilityID"}),
+				    AddedLabel = Table.AddColumn(LatestPerFacility, "Facility", each [FacilityID] & " | " & [FacilityName], type text),
+				    Typed = Table.TransformColumnTypes(AddedLabel, {{"FacilityID", type text}, {"FacilityName", type text}, {"State", type text}, {"Region", type text}, {"Facility", type text}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

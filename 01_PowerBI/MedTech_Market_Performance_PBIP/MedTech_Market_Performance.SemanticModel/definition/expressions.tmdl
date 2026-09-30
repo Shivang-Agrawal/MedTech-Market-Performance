@@ -1,0 +1,231 @@
+/// Full local path to MedTech_Case_Study_Data.xlsx. Change via Transform data > Edit parameters.
+expression SourceFilePath = "C:\Users\SAgrawa46\OneDrive - T-Mobile USA\Downloads\MedTech_BI_Case_Study_Submission\MedTech_Case_Study_Data.xlsx" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 09b9736a-044c-5854-bb17-a8d1e5cba67a
+
+	annotation PBI_ResultType = Text
+
+/// Manufacturer value that identifies Company Sales.
+expression OurCompanyName = "Our Company" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 87c56745-75cf-54bf-a4e1-def521d11549
+
+	annotation PBI_ResultType = Exception
+
+/// A month is complete only if delivered rows >= this ratio of the trailing 3-month average.
+expression CompletenessVolumeThreshold = 0.8 meta [IsParameterQuery=true, Type="Number", IsParameterQueryRequired=true]
+	lineageTag: 02d7b1fa-6302-51fd-a6a5-0551eaef96b6
+
+	annotation PBI_ResultType = Exception
+
+/// A month is complete only if the last transaction date is within this many days of month end.
+expression CompletenessCoverageToleranceDays = 3 meta [IsParameterQuery=true, Type="Number", IsParameterQueryRequired=true]
+	lineageTag: 4fa3d5cc-c1dd-5ea3-9797-6a752ad64efd
+
+	annotation PBI_ResultType = Exception
+
+expression src_Workbook =
+		let
+		    // Single connection to the supplied workbook. delayTypes = true so every column is typed explicitly downstream.
+		    Source = Excel.Workbook(File.Contents(SourceFilePath), null, true)
+		in
+		    Source
+	lineageTag: 30d3856c-901c-54b7-9ee6-13c7ee14aa8b
+
+	annotation PBI_ResultType = Table
+
+expression stg_VendorRaw =
+		let
+		    Source = src_Workbook,
+		    SheetData = Source{[Item = "Vendor_Market_Data", Kind = "Sheet"]}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(SheetData, [PromoteAllScalars = true]),
+		    // ---- Schema validation: fail the refresh with a clear message if a required column is missing ----
+		    RequiredColumns = {"TransactionDate", "InvoiceMonth", "InvoiceNumber", "InvoiceLineNumber", "FacilityID", "FacilityName", "State", "Region", "ProductCode", "ProductDescription", "Manufacturer", "VendorBrand", "Units", "SalesAmount", "IngestedAt", "BatchID"},
+		    MissingColumns = List.Difference(RequiredColumns, Table.ColumnNames(PromotedHeaders)),
+		    SchemaValidated =
+		        if List.IsEmpty(MissingColumns)
+		        then Table.SelectColumns(PromotedHeaders, RequiredColumns)
+		        else error Error.Record("SchemaValidationFailed", "Vendor_Market_Data is missing required column(s): " & Text.Combine(MissingColumns, ", ")),
+		    RemovedBlankRows = Table.SelectRows(SchemaValidated, each [InvoiceNumber] <> null and [InvoiceNumber] <> ""),
+		    TypedColumns = Table.TransformColumnTypes(RemovedBlankRows, {
+		        {"TransactionDate", type date}, {"InvoiceMonth", type text}, {"InvoiceNumber", type text},
+		        {"InvoiceLineNumber", Int64.Type}, {"FacilityID", type text}, {"FacilityName", type text},
+		        {"State", type text}, {"Region", type text}, {"ProductCode", type text},
+		        {"ProductDescription", type text}, {"Manufacturer", type text}, {"VendorBrand", type text},
+		        {"Units", Int64.Type}, {"SalesAmount", Currency.Type}, {"IngestedAt", type datetime}, {"BatchID", type text}}),
+		    // Stable surrogate for lineage: position of the row in the source extract
+		    AddedRawRowId = Table.AddIndexColumn(TypedColumns, "RawRowId", 1, 1, Int64.Type),
+		    // ---- Product-code hygiene: keep the raw value for audit, derive a normalised join key ----
+		    RenamedRawCode = Table.RenameColumns(AddedRawRowId, {{"ProductCode", "ProductCodeRaw"}}),
+		    AddedCleanCode = Table.AddColumn(RenamedRawCode, "ProductCode", each Text.Upper(Text.Trim(Text.Clean([ProductCodeRaw]))), type text),
+		    AddedCodeNormalisedFlag = Table.AddColumn(AddedCleanCode, "CodeWasNormalised", each [ProductCodeRaw] <> [ProductCode], type logical),
+		    TrimmedText = Table.TransformColumns(AddedCodeNormalisedFlag, {
+		        {"InvoiceNumber", Text.Trim, type text}, {"FacilityID", each Text.Upper(Text.Trim(_)), type text},
+		        {"FacilityName", Text.Trim, type text}, {"State", each Text.Upper(Text.Trim(_)), type text},
+		        {"Region", Text.Trim, type text}, {"ProductDescription", Text.Trim, type text},
+		        {"Manufacturer", Text.Trim, type text}, {"VendorBrand", Text.Trim, type text}, {"BatchID", Text.Trim, type text}}),
+		    AddedMonthStart = Table.AddColumn(TrimmedText, "MonthStart", each Date.StartOfMonth([TransactionDate]), type date),
+		    // Consistency check: vendor InvoiceMonth must agree with TransactionDate
+		    AddedMonthCheck = Table.AddColumn(AddedMonthStart, "InvoiceMonthMatchesDate", each [InvoiceMonth] = Date.ToText([TransactionDate], [Format = "yyyy-MM", Culture = "en-US"]), type logical),
+		    Buffered = Table.Buffer(AddedMonthCheck)
+		in
+		    Buffered
+	lineageTag: a65b537e-538c-5e7f-aa44-923bde59dbc9
+
+	annotation PBI_ResultType = Table
+
+expression stg_VendorDedup =
+		let
+		    Source = stg_VendorRaw,
+		    // Natural key of an invoice line = InvoiceNumber + InvoiceLineNumber.
+		    // Keep the most recently ingested version; ties (exact re-sends) keep the first source row.
+		    GroupedByNaturalKey = Table.Group(Source, {"InvoiceNumber", "InvoiceLineNumber"}, {
+		        {"KeptRawRowId", each
+		            let
+		                LatestIngest = List.Max([IngestedAt])
+		            in
+		                List.Min(Table.SelectRows(_, (r) => r[IngestedAt] = LatestIngest)[RawRowId]), Int64.Type},
+		        {"KeyRowCount", each Table.RowCount(_), Int64.Type},
+		        {"DistinctVersions", each Table.RowCount(Table.Distinct(Table.SelectColumns(_, {"TransactionDate", "FacilityID", "ProductCode", "Manufacturer", "Units", "SalesAmount"}))), Int64.Type}}),
+		    MergedKeyInfo = Table.NestedJoin(Source, {"InvoiceNumber", "InvoiceLineNumber"}, GroupedByNaturalKey, {"InvoiceNumber", "InvoiceLineNumber"}, "KeyInfo", JoinKind.LeftOuter),
+		    ExpandedKeyInfo = Table.ExpandTableColumn(MergedKeyInfo, "KeyInfo", {"KeptRawRowId", "KeyRowCount", "DistinctVersions"}, {"KeptRawRowId", "KeyRowCount", "DistinctVersions"}),
+		    AddedIsDuplicate = Table.AddColumn(ExpandedKeyInfo, "IsDuplicate", each [RawRowId] <> [KeptRawRowId], type logical),
+		    AddedDuplicateType = Table.AddColumn(AddedIsDuplicate, "DuplicateType", each
+		        if not [IsDuplicate] then null
+		        else if [DistinctVersions] = 1 then "Exact duplicate"
+		        else "Superseded version", type text),
+		    SortedBySource = Table.Sort(AddedDuplicateType, {{"RawRowId", Order.Ascending}}),
+		    Buffered = Table.Buffer(SortedBySource)
+		in
+		    Buffered
+	lineageTag: 9d40037d-b0c3-5bab-a0e4-ccfea4d56419
+
+	annotation PBI_ResultType = Table
+
+expression stg_ProductMapping =
+		let
+		    Source = src_Workbook,
+		    SheetData = Source{[Item = "Product_Scope", Kind = "Sheet"]}[Data],
+		    PromotedHeaders = Table.PromoteHeaders(SheetData, [PromoteAllScalars = true]),
+		    RequiredColumns = {"ProductCode", "InternalBrand", "Category", "Subcategory", "ActiveFlag", "EffectiveFrom", "EffectiveTo"},
+		    MissingColumns = List.Difference(RequiredColumns, Table.ColumnNames(PromotedHeaders)),
+		    SchemaValidated =
+		        if List.IsEmpty(MissingColumns)
+		        then Table.SelectColumns(PromotedHeaders, RequiredColumns)
+		        else error Error.Record("SchemaValidationFailed", "Product_Scope is missing required column(s): " & Text.Combine(MissingColumns, ", ")),
+		    TypedColumns = Table.TransformColumnTypes(SchemaValidated, {
+		        {"ProductCode", type text}, {"InternalBrand", type text}, {"Category", type text}, {"Subcategory", type text},
+		        {"ActiveFlag", type text}, {"EffectiveFrom", type date}, {"EffectiveTo", type date}}),
+		    RemovedBlankCodes = Table.SelectRows(TypedColumns, each [ProductCode] <> null and Text.Trim([ProductCode]) <> ""),
+		    // Same normalisation as the vendor feed so the join key matches (" P015" -> "P015")
+		    Normalised = Table.TransformColumns(RemovedBlankCodes, {
+		        {"ProductCode", each Text.Upper(Text.Trim(Text.Clean(_))), type text},
+		        {"InternalBrand", Text.Trim, type text}, {"Category", Text.Trim, type text},
+		        {"Subcategory", Text.Trim, type text}, {"ActiveFlag", each Text.Upper(Text.Trim(_)), type text}}),
+		    Buffered = Table.Buffer(Normalised),
+		    // Raw counts (before de-duplication) - used to quantify join fan-out risk
+		    RawCounts = Table.Group(Buffered, {"ProductCode"}, {
+		        {"ScopeRowsRaw", each Table.RowCount(_), Int64.Type},
+		        {"ActiveRowsRaw", each Table.RowCount(Table.SelectRows(_, each [ActiveFlag] = "Y")), Int64.Type}}),
+		    // Rule 1: exact duplicate scope rows are collapsed (P012 and " P015" appear twice)
+		    DistinctRows = Table.Distinct(Buffered),
+		    ActiveRows = Table.SelectRows(DistinctRows, each [ActiveFlag] = "Y"),
+		    Grouped = Table.Group(DistinctRows, {"ProductCode"}, {
+		        {"ScopeRowsDistinct", each Table.RowCount(_), Int64.Type},
+		        {"ActiveMappings", each Table.RowCount(Table.Distinct(Table.SelectColumns(Table.SelectRows(_, each [ActiveFlag] = "Y"), {"InternalBrand", "Category", "Subcategory"}))), Int64.Type},
+		        {"InactiveRows", each Table.RowCount(Table.SelectRows(_, each [ActiveFlag] <> "Y")), Int64.Type},
+		        {"MappingDetail", each Text.Combine(List.Transform(Table.ToRecords(_), (r) =>
+		            (if r[ActiveFlag] = "Y" then "[Active] " else "[Inactive] ") & r[InternalBrand] & " / " & r[Category] & " / " & r[Subcategory]
+		            & " from " & (if r[EffectiveFrom] = null then "n/a" else Date.ToText(r[EffectiveFrom], [Format = "yyyy-MM-dd", Culture = "en-US"]))
+		            & (if r[EffectiveTo] = null then " (open)" else " to " & Date.ToText(r[EffectiveTo], [Format = "yyyy-MM-dd", Culture = "en-US"]))), " | "), type text}}),
+		    JoinedRawCounts = Table.NestedJoin(Grouped, {"ProductCode"}, RawCounts, {"ProductCode"}, "Raw", JoinKind.LeftOuter),
+		    ExpandedRawCounts = Table.ExpandTableColumn(JoinedRawCounts, "Raw", {"ScopeRowsRaw", "ActiveRowsRaw"}, {"ScopeRowsRaw", "ActiveRowsRaw"}),
+		    // Rule 2: exactly one distinct active mapping = Active; more than one = Ambiguous (quarantined); none = Inactive
+		    AddedStatus = Table.AddColumn(ExpandedRawCounts, "MappingStatus", each
+		        if [ActiveMappings] = 1 then "Active"
+		        else if [ActiveMappings] > 1 then "Ambiguous"
+		        else "Inactive", type text),
+		    AddedReason = Table.AddColumn(AddedStatus, "MappingReason", each
+		        if [MappingStatus] = "Active" then (if [ScopeRowsDistinct] < [ScopeRowsRaw] then "Single active mapping after collapsing exact duplicate scope rows" else "Single active mapping")
+		        else if [MappingStatus] = "Ambiguous" then Text.From([ActiveMappings]) & " conflicting active mappings with overlapping (open-ended) effective dates - quarantined pending data-steward decision"
+		        else "Flagged inactive (ActiveFlag = N) - out of scope", type text),
+		    ActiveMappingAttributes = Table.Group(ActiveRows, {"ProductCode", "InternalBrand", "Category", "Subcategory"}, {
+		        {"EffectiveFrom", each List.Min([EffectiveFrom]), type date},
+		        {"EffectiveTo", each if List.Contains([EffectiveTo], null) then null else List.Max([EffectiveTo]), type date}}),
+		    JoinedAttributes = Table.NestedJoin(AddedReason, {"ProductCode"}, ActiveMappingAttributes, {"ProductCode"}, "Attr", JoinKind.LeftOuter),
+		    AddedBrand = Table.AddColumn(JoinedAttributes, "Brand", each if [MappingStatus] = "Active" then [Attr]{0}[InternalBrand] else null, type text),
+		    AddedCategory = Table.AddColumn(AddedBrand, "Category", each if [MappingStatus] = "Active" then [Attr]{0}[Category] else null, type text),
+		    AddedSubcategory = Table.AddColumn(AddedCategory, "Subcategory", each if [MappingStatus] = "Active" then [Attr]{0}[Subcategory] else null, type text),
+		    AddedEffectiveFrom = Table.AddColumn(AddedSubcategory, "EffectiveFrom", each if [MappingStatus] = "Active" then [Attr]{0}[EffectiveFrom] else null, type date),
+		    AddedEffectiveTo = Table.AddColumn(AddedEffectiveFrom, "EffectiveTo", each if [MappingStatus] = "Active" then [Attr]{0}[EffectiveTo] else null, type date),
+		    RemovedAttr = Table.RemoveColumns(AddedEffectiveTo, {"Attr"}),
+		    Result = Table.Buffer(RemovedAttr)
+		in
+		    Result
+	lineageTag: d66cdf21-beee-59d4-9b67-6c1ae6e5e85d
+
+	annotation PBI_ResultType = Table
+
+expression stg_CanonicalDescription =
+		let
+		    // Vendor sends alternative descriptions for the same code (e.g. "... - Alt").
+		    // Canonical description = most frequent description per code (ties: alphabetical).
+		    Source = Table.SelectRows(stg_VendorDedup, each not [IsDuplicate]),
+		    Counted = Table.Group(Source, {"ProductCode", "ProductDescription"}, {{"DescriptionRows", each Table.RowCount(_), Int64.Type}}),
+		    Sorted = Table.Buffer(Table.Sort(Counted, {{"ProductCode", Order.Ascending}, {"DescriptionRows", Order.Descending}, {"ProductDescription", Order.Ascending}})),
+		    FirstPerCode = Table.Distinct(Sorted, {"ProductCode"}),
+		    Renamed = Table.RenameColumns(FirstPerCode, {{"ProductDescription", "CanonicalDescription"}}),
+		    DescriptionCounts = Table.Group(Counted, {"ProductCode"}, {{"DistinctDescriptions", each Table.RowCount(_), Int64.Type}}),
+		    JoinedCounts = Table.NestedJoin(Renamed, {"ProductCode"}, DescriptionCounts, {"ProductCode"}, "C", JoinKind.LeftOuter),
+		    ExpandedCounts = Table.ExpandTableColumn(JoinedCounts, "C", {"DistinctDescriptions"}, {"DistinctDescriptions"}),
+		    // Vendor-reported manufacturer per code (most frequent) - used for DimProduct attribution
+		    ManufacturerCounted = Table.Group(Source, {"ProductCode", "Manufacturer"}, {{"ManufacturerRows", each Table.RowCount(_), Int64.Type}}),
+		    ManufacturerSorted = Table.Buffer(Table.Sort(ManufacturerCounted, {{"ProductCode", Order.Ascending}, {"ManufacturerRows", Order.Descending}, {"Manufacturer", Order.Ascending}})),
+		    ManufacturerFirst = Table.Distinct(ManufacturerSorted, {"ProductCode"}),
+		    JoinedManufacturer = Table.NestedJoin(ExpandedCounts, {"ProductCode"}, ManufacturerFirst, {"ProductCode"}, "M", JoinKind.LeftOuter),
+		    ExpandedManufacturer = Table.ExpandTableColumn(JoinedManufacturer, "M", {"Manufacturer"}, {"Manufacturer"}),
+		    Selected = Table.SelectColumns(ExpandedManufacturer, {"ProductCode", "CanonicalDescription", "DistinctDescriptions", "Manufacturer"}),
+		    Buffered = Table.Buffer(Selected)
+		in
+		    Buffered
+	lineageTag: 183fc71a-8ecd-5ff7-9998-72ba23039213
+
+	annotation PBI_ResultType = Table
+
+expression stg_VendorAudit =
+		let
+		    Source = stg_VendorDedup,
+		    JoinedMapping = Table.NestedJoin(Source, {"ProductCode"}, stg_ProductMapping, {"ProductCode"}, "Map", JoinKind.LeftOuter),
+		    ExpandedMapping = Table.ExpandTableColumn(JoinedMapping, "Map", {"MappingStatus", "EffectiveFrom", "EffectiveTo"}, {"MappingStatus", "MapEffectiveFrom", "MapEffectiveTo"}),
+		    // Status precedence: Duplicate > Unmapped > Inactive > Ambiguous > Outside effective window > Accepted
+		    AddedRowStatus = Table.AddColumn(ExpandedMapping, "RowStatus", each
+		        if [IsDuplicate] then "Rejected - Duplicate"
+		        else if [MappingStatus] = null then "Rejected - Unmapped product"
+		        else if [MappingStatus] = "Inactive" then "Rejected - Inactive product"
+		        else if [MappingStatus] = "Ambiguous" then "Rejected - Ambiguous mapping"
+		        else if ([MapEffectiveFrom] <> null and [TransactionDate] < [MapEffectiveFrom]) or ([MapEffectiveTo] <> null and [TransactionDate] > [MapEffectiveTo]) then "Rejected - Outside effective window"
+		        else "Accepted", type text),
+		    AddedRejectReason = Table.AddColumn(AddedRowStatus, "RejectReason", each
+		        if [RowStatus] = "Accepted" then null
+		        else if [RowStatus] = "Rejected - Duplicate" then [DuplicateType] & " of RawRowId " & Text.From([KeptRawRowId])
+		        else if [RowStatus] = "Rejected - Unmapped product" then "Code " & [ProductCode] & " not in Product_Scope"
+		        else if [RowStatus] = "Rejected - Inactive product" then "Code " & [ProductCode] & " has ActiveFlag = N"
+		        else if [RowStatus] = "Rejected - Ambiguous mapping" then "Code " & [ProductCode] & " has conflicting active mappings"
+		        else "Transaction date outside mapping effective window", type text),
+		    AddedStatusSort = Table.AddColumn(AddedRejectReason, "StatusSortOrder", each
+		        if [RowStatus] = "Accepted" then 1
+		        else if [RowStatus] = "Rejected - Duplicate" then 2
+		        else if [RowStatus] = "Rejected - Inactive product" then 3
+		        else if [RowStatus] = "Rejected - Unmapped product" then 4
+		        else if [RowStatus] = "Rejected - Ambiguous mapping" then 5
+		        else 6, Int64.Type),
+		    ReplacedNullStatus = Table.ReplaceValue(AddedStatusSort, null, "Unmapped", Replacer.ReplaceValue, {"MappingStatus"}),
+		    JoinedCanonical = Table.NestedJoin(ReplacedNullStatus, {"ProductCode"}, stg_CanonicalDescription, {"ProductCode"}, "Desc", JoinKind.LeftOuter),
+		    ExpandedCanonical = Table.ExpandTableColumn(JoinedCanonical, "Desc", {"CanonicalDescription"}, {"CanonicalDescription"}),
+		    AddedIsAltDescription = Table.AddColumn(ExpandedCanonical, "IsAltDescription", each [CanonicalDescription] <> null and [ProductDescription] <> [CanonicalDescription], type logical),
+		    SortedBySource = Table.Sort(AddedIsAltDescription, {{"RawRowId", Order.Ascending}}),
+		    Buffered = Table.Buffer(SortedBySource)
+		in
+		    Buffered
+	lineageTag: 3488df74-a04b-5d73-a139-127d4ceeaac0
+
+	annotation PBI_ResultType = Table
+

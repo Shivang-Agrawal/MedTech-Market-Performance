@@ -1,0 +1,59 @@
+{
+  "name": "MedTech Generic",
+  "dataColors": [
+    "#1F3A5F",
+    "#2A9D8F",
+    "#E9C46A",
+    "#E76F51",
+    "#6C757D",
+    "#8AB6D6",
+    "#264653",
+    "#F4A261",
+    "#A8DADC",
+    "#457B9D"
+  ],
+  "foreground": "#1B1B1B",
+  "background": "#FFFFFF",
+  "tableAccent": "#1F3A5F",
+  "good": "#2A9D8F",
+  "neutral": "#E9C46A",
+  "bad": "#E76F51",
+  "textClasses": {
+    "callout": {
+      "fontFace": "Segoe UI",
+      "fontSize": 20,
+      "color": "#1F3A5F"
+    },
+    "title": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 11,
+      "color": "#1F3A5F"
+    },
+    "header": {
+      "fontFace": "Segoe UI Semibold",
+      "fontSize": 11,
+      "color": "#1F3A5F"
+    },
+    "label": {
+      "fontFace": "Segoe UI",
+      "fontSize": 9,
+      "color": "#3B3B3B"
+    }
+  },
+  "visualStyles": {
+    "page": {
+      "*": {
+        "background": [
+          {
+            "color": {
+              "solid": {
+                "color": "#F4F6F8"
+              }
+            },
+            "transparency": 0
+          }
+        ]
+      }
+    }
+  }
+}

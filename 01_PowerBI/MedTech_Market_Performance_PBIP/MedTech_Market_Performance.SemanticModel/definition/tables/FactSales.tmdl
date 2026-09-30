@@ -1,0 +1,136 @@
+/// Accepted invoice lines only (grain: one vendor invoice line). De-duplicated, active, unambiguous product mapping.
+table FactSales
+	lineageTag: ad28198b-d65f-5eef-9f2a-90041de94ecd
+
+	/// Source row position - lineage back to Vendor_Market_Data
+	column RawRowId
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 8aefac61-ff18-58cf-a9da-1fdbc4080f28
+		summarizeBy: none
+		sourceColumn: RawRowId
+
+		annotation SummarizationSetBy = Automatic
+
+	column InvoiceNumber
+		dataType: string
+		lineageTag: 6f6f1e09-4230-50a9-8d09-6f2e0116877e
+		summarizeBy: none
+		sourceColumn: InvoiceNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column InvoiceLineNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: 4ce51145-59a9-56dc-ac87-72d9e3568ab1
+		summarizeBy: none
+		sourceColumn: InvoiceLineNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Relates to DimDate[Date]
+	column TransactionDate
+		dataType: dateTime
+		isHidden
+		formatString: dd-mmm-yyyy
+		lineageTag: 445ad6ba-c87d-5c3c-b798-71c3b1542a48
+		summarizeBy: none
+		sourceColumn: TransactionDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	/// Relates to DimFacility
+	column FacilityID
+		dataType: string
+		isHidden
+		lineageTag: 48e79d2d-bfab-5292-8451-9be25c24c973
+		summarizeBy: none
+		sourceColumn: FacilityID
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Normalised code (trim + upper). Relates to DimProduct
+	column ProductCode
+		dataType: string
+		isHidden
+		lineageTag: 609b7b98-b1f1-5c6a-8a1a-45647fdccac8
+		summarizeBy: none
+		sourceColumn: ProductCode
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Relates to DimManufacturer
+	column Manufacturer
+		dataType: string
+		isHidden
+		lineageTag: 9e96dd6c-a955-5272-b305-e0d919a97b94
+		summarizeBy: none
+		sourceColumn: Manufacturer
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Use measures instead of the raw column
+	column Units
+		dataType: int64
+		isHidden
+		formatString: #,0
+		lineageTag: ec1ed9d1-59af-5a96-ac43-a1bed4b3290e
+		summarizeBy: none
+		sourceColumn: Units
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Use measures instead of the raw column
+	column SalesAmount
+		dataType: decimal
+		isHidden
+		formatString: \$#,0.00;(\$#,0.00);\$#,0.00
+		lineageTag: 54460117-4044-553e-b502-00ef06fe1089
+		summarizeBy: none
+		sourceColumn: SalesAmount
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Vendor delivery batch
+	column BatchID
+		dataType: string
+		lineageTag: 65141b5b-4bb0-5fa5-8799-8f053838d1be
+		summarizeBy: none
+		sourceColumn: BatchID
+
+		annotation SummarizationSetBy = Automatic
+
+	column IngestedAt
+		dataType: dateTime
+		isHidden
+		formatString: dd-mmm-yyyy
+		lineageTag: 51d53f29-3653-57be-a883-19e140760748
+		summarizeBy: none
+		sourceColumn: IngestedAt
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = DateTime
+
+	partition FactSales = m
+		mode: import
+		source =
+				let
+				    Source = stg_VendorAudit,
+				    // Only accepted rows reach the fact table: de-duplicated, active, unambiguous, in-window.
+				    Accepted = Table.SelectRows(Source, each [RowStatus] = "Accepted"),
+				    Selected = Table.SelectColumns(Accepted, {"RawRowId", "InvoiceNumber", "InvoiceLineNumber", "TransactionDate", "FacilityID", "ProductCode", "Manufacturer", "Units", "SalesAmount", "BatchID", "IngestedAt"}),
+				    Typed = Table.TransformColumnTypes(Selected, {
+				        {"RawRowId", Int64.Type}, {"InvoiceNumber", type text}, {"InvoiceLineNumber", Int64.Type},
+				        {"TransactionDate", type date}, {"FacilityID", type text}, {"ProductCode", type text},
+				        {"Manufacturer", type text}, {"Units", Int64.Type}, {"SalesAmount", Currency.Type},
+				        {"BatchID", type text}, {"IngestedAt", type datetime}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

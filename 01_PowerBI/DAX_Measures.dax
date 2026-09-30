@@ -1,0 +1,474 @@
+// ==========================================================================
+// MedTech Market Performance - DAX measures (home table: _Measures)
+// Also stored in the model at SemanticModel/definition/tables/_Measures.tmdl
+// ==========================================================================
+
+
+// ======================================================================
+// 1. Core KPIs
+// ======================================================================
+// Sum of accepted SalesAmount in the current filter context (respects manufacturer filters).
+// Format: \$#,0;(\$#,0);\$#,0
+[Sales Amount] :=
+SUM ( FactSales[SalesAmount] )
+
+// Total in-scope market sales (all manufacturers). Ignores manufacturer filters so share is always vs. the whole market.
+// Format: \$#,0;(\$#,0);\$#,0
+[Market Sales] :=
+CALCULATE ( [Sales Amount], REMOVEFILTERS ( DimManufacturer ) )
+
+// Sales where Manufacturer = Our Company (parameter OurCompanyName).
+// Format: \$#,0;(\$#,0);\$#,0
+[Company Sales] :=
+CALCULATE ( [Sales Amount], KEEPFILTERS ( DimManufacturer[IsOurCompany] = TRUE () ) )
+
+// Market Sales less Company Sales.
+// Format: \$#,0;(\$#,0);\$#,0
+[Competitor Sales] :=
+[Market Sales] - [Company Sales]
+
+// Company Sales / Market Sales. Returns 0% (not blank) where the market exists but the company has no sales.
+// Format: 0.00%;-0.00%;0.00%
+[Market Share %] :=
+DIVIDE ( [Company Sales] + 0, [Market Sales] )
+
+// Units across all manufacturers.
+// Format: #,0
+[Market Units] :=
+CALCULATE ( SUM ( FactSales[Units] ), REMOVEFILTERS ( DimManufacturer ) )
+
+// Units for Our Company.
+// Format: #,0
+[Company Units] :=
+CALCULATE ( SUM ( FactSales[Units] ), KEEPFILTERS ( DimManufacturer[IsOurCompany] = TRUE () ) )
+
+
+// ======================================================================
+// 2. Time Intelligence
+// ======================================================================
+// Market Sales restricted to like-for-like months (complete this year AND complete last year).
+// Format: \$#,0;(\$#,0);\$#,0
+[Market Sales (YoY Basis)] :=
+CALCULATE ( [Market Sales], KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+
+// Company Sales restricted to like-for-like months.
+// Format: \$#,0;(\$#,0);\$#,0
+[Company Sales (YoY Basis)] :=
+CALCULATE ( [Company Sales], KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+
+// Prior-year Market Sales for the same like-for-like months. Incomplete months are never compared.
+// Format: \$#,0;(\$#,0);\$#,0
+[Market Sales PY] :=
+CALCULATE (
+    CALCULATE ( [Market Sales], SAMEPERIODLASTYEAR ( DimDate[Date] ) ),
+    KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () )
+)
+
+// Prior-year Company Sales for the same like-for-like months.
+// Format: \$#,0;(\$#,0);\$#,0
+[Company Sales PY] :=
+CALCULATE (
+    CALCULATE ( [Company Sales], SAMEPERIODLASTYEAR ( DimDate[Date] ) ),
+    KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () )
+)
+
+// (Market Sales YoY basis - Market Sales PY) / Market Sales PY.
+// Format: 0.00%;-0.00%;0.00%
+[Market YoY Growth %] :=
+VAR _cy = [Market Sales (YoY Basis)]
+VAR _py = [Market Sales PY]
+RETURN
+    IF ( NOT ISBLANK ( _cy ) && NOT ISBLANK ( _py ), DIVIDE ( _cy - _py, _py ) )
+
+// (Company Sales YoY basis - Company Sales PY) / Company Sales PY.
+// Format: 0.00%;-0.00%;0.00%
+[Company YoY Growth %] :=
+VAR _cy = [Company Sales (YoY Basis)]
+VAR _py = [Company Sales PY]
+RETURN
+    IF ( NOT ISBLANK ( _cy ) && NOT ISBLANK ( _py ), DIVIDE ( _cy - _py, _py ) )
+
+// Market share over like-for-like months only.
+// Format: 0.00%;-0.00%;0.00%
+[Market Share % (YoY Basis)] :=
+DIVIDE ( [Company Sales (YoY Basis)] + 0, [Market Sales (YoY Basis)] )
+
+// Prior-year market share over the same like-for-like months.
+// Format: 0.00%;-0.00%;0.00%
+[Market Share PY %] :=
+DIVIDE ( [Company Sales PY] + 0, [Market Sales PY] )
+
+// Change in market share vs prior year, in percentage points.
+// Format: +0.00" pp";-0.00" pp";0.00" pp"
+[Market Share Change (pp)] :=
+VAR _cy = IF ( NOT ISBLANK ( [Market Sales (YoY Basis)] ), [Market Share % (YoY Basis)] )
+VAR _py = IF ( NOT ISBLANK ( [Market Sales PY] ), [Market Share PY %] )
+RETURN
+    IF ( NOT ISBLANK ( _cy ) && NOT ISBLANK ( _py ), ( _cy - _py ) * 100 )
+
+// Company Sales (YoY basis) minus Company Sales PY.
+// Format: \$#,0;(\$#,0);\$#,0
+[Company Sales Variance vs PY] :=
+VAR _py = [Company Sales PY]
+RETURN
+    IF ( NOT ISBLANK ( _py ), [Company Sales (YoY Basis)] - _py )
+
+// Market Sales (YoY basis) minus Market Sales PY.
+// Format: \$#,0;(\$#,0);\$#,0
+[Market Sales Variance vs PY] :=
+VAR _py = [Market Sales PY]
+RETURN
+    IF ( NOT ISBLANK ( _py ), [Market Sales (YoY Basis)] - _py )
+
+
+// ======================================================================
+// 3. Contribution
+// ======================================================================
+// Additive decomposition of the market-share change. For any product/brand/geography slice i: ((c1 - S0*m1)/M1 - (c0 - S0*m0)/M0) x 100, where c = company sales, m = market sales of the slice, M = total selected market, S0 = prior-year share. Slices sum exactly to [Market Share Change (pp)]. Company products gaining market weight add share; competitor products gaining weight remove share.
+// Format: +0.00" pp";-0.00" pp";0.00" pp"
+[Share Change Contribution (pp)] :=
+VAR _M1 = CALCULATE ( [Market Sales (YoY Basis)], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+VAR _M0 = CALCULATE ( [Market Sales PY], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+VAR _C0 = CALCULATE ( [Company Sales PY], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+VAR _S0 = DIVIDE ( _C0, _M0 )
+VAR _c1 = [Company Sales (YoY Basis)] + 0
+VAR _m1 = [Market Sales (YoY Basis)] + 0
+VAR _c0 = [Company Sales PY] + 0
+VAR _m0 = [Market Sales PY] + 0
+RETURN
+    IF (
+        NOT ISBLANK ( _M1 ) && NOT ISBLANK ( _M0 ) && ( _m1 <> 0 || _m0 <> 0 ),
+        ( DIVIDE ( _c1 - _S0 * _m1, _M1 ) - DIVIDE ( _c0 - _S0 * _m0, _M0 ) ) * 100
+    )
+
+// Change in the slice's weight of the selected market (m1/M1 - m0/M0) x 100.
+// Format: +0.00" pp";-0.00" pp";0.00" pp"
+[Market Mix Weight Change (pp)] :=
+VAR _M1 = CALCULATE ( [Market Sales (YoY Basis)], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+VAR _M0 = CALCULATE ( [Market Sales PY], ALLSELECTED ( DimProduct ), ALLSELECTED ( DimFacility ) )
+RETURN
+    IF ( NOT ISBLANK ( _M1 ) && NOT ISBLANK ( _M0 ), ( DIVIDE ( [Market Sales (YoY Basis)] + 0, _M1 ) - DIVIDE ( [Market Sales PY] + 0, _M0 ) ) * 100 )
+
+
+// ======================================================================
+// 4. Top N
+// ======================================================================
+// Selected N from the 'Top N' slicer (default 10).
+// Format: 0
+[Top N Value] :=
+SELECTEDVALUE ( 'Top N'[Top N], 10 )
+
+// Dense rank of the brand by Market Sales within the current selection (slicers/filters respected).
+// Format: 0
+[Brand Rank] :=
+IF (
+    ISINSCOPE ( DimProduct[Brand] ),
+    RANKX ( ALLSELECTED ( DimProduct[Brand] ), [Market Sales], , DESC, DENSE )
+)
+
+// Market Sales for brands ranked within Top N; the total row sums only the Top N brands.
+// Format: \$#,0;(\$#,0);\$#,0
+[Top N Brand Market Sales] :=
+VAR _n = [Top N Value]
+RETURN
+    IF (
+        ISINSCOPE ( DimProduct[Brand] ),
+        IF ( [Brand Rank] <= _n, [Market Sales] ),
+        CALCULATE ( [Market Sales], TOPN ( _n, ALLSELECTED ( DimProduct[Brand] ), [Market Sales], DESC ) )
+    )
+
+// Company Sales for the Top N brands (ranked by Market Sales).
+// Format: \$#,0;(\$#,0);\$#,0
+[Top N Brand Company Sales] :=
+VAR _n = [Top N Value]
+RETURN
+    IF (
+        ISINSCOPE ( DimProduct[Brand] ),
+        IF ( [Brand Rank] <= _n, [Company Sales] + 0 ),
+        CALCULATE ( [Company Sales], TOPN ( _n, ALLSELECTED ( DimProduct[Brand] ), [Market Sales], DESC ) )
+    )
+
+// Market share for the Top N brands.
+// Format: 0.00%;-0.00%;0.00%
+[Top N Brand Market Share %] :=
+DIVIDE ( [Top N Brand Company Sales], [Top N Brand Market Sales] )
+
+// Dynamic visual title.
+// Format: text
+[Top N Title] :=
+"Top " & [Top N Value] & " brands by Market Sales (Company vs Market)"
+
+
+// ======================================================================
+// 5. Period & Completeness
+// ======================================================================
+// Most recent month that passed both completeness checks.
+// Format: mmm yyyy
+[Latest Complete Month] :=
+CALCULATE ( MAX ( DimDate[MonthStart] ), REMOVEFILTERS ( DimDate ), DimDate[IsCompleteMonth] = TRUE () )
+
+// Last transaction date delivered by the vendor.
+// Format: dd-mmm-yyyy
+[Latest Data Date] :=
+CALCULATE ( MAX ( DQ_PeriodCompleteness[LastTransactionDate] ), REMOVEFILTERS ( DQ_PeriodCompleteness ) )
+
+// Number of delivered months failing completeness checks.
+// Format: 0
+[Incomplete Months] :=
+CALCULATE ( COUNTROWS ( DQ_PeriodCompleteness ), REMOVEFILTERS ( DQ_PeriodCompleteness ), DQ_PeriodCompleteness[IsComplete] = FALSE () ) + 0
+
+// Text banner for the executive page.
+// Format: text
+[Complete Period Indicator] :=
+VAR _latest = [Latest Complete Month]
+VAR _incomplete =
+    CALCULATE (
+        MAX ( DQ_PeriodCompleteness[MonthLabel] ),
+        REMOVEFILTERS ( DQ_PeriodCompleteness ),
+        DQ_PeriodCompleteness[IsComplete] = FALSE ()
+    )
+RETURN
+    "Latest complete month: " & FORMAT ( _latest, "mmm yyyy" )
+        & IF (
+            NOT ISBLANK ( _incomplete ),
+            "  |  " & _incomplete & " incomplete (data to " & FORMAT ( [Latest Data Date], "d mmm yyyy" ) & ") - excluded",
+            ""
+        )
+
+// TRUE when the current date selection contains an incomplete month.
+// Format: text
+[Selection Includes Incomplete Month] :=
+CALCULATE ( COUNTROWS ( DimDate ), KEEPFILTERS ( DimDate[PeriodStatus] = "Incomplete" ) ) > 0
+
+// Warns users when partial data is in the selection.
+// Format: text
+[Period Status Message] :=
+IF (
+    [Selection Includes Incomplete Month],
+    "WARNING: selection includes an incomplete month - totals are partial; YoY and share change use complete, like-for-like months only",
+    "All selected months are complete"
+)
+
+// Describes the like-for-like comparison window in the current selection.
+// Format: text
+[Comparison Period Label] :=
+VAR _from = CALCULATE ( MIN ( DimDate[MonthStart] ), KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+VAR _to = CALCULATE ( MAX ( DimDate[MonthStart] ), KEEPFILTERS ( DimDate[IsYoYComparable] = TRUE () ) )
+RETURN
+    IF (
+        ISBLANK ( _from ),
+        "No like-for-like months in selection",
+        FORMAT ( _from, "mmm yyyy" ) & " - " & FORMAT ( _to, "mmm yyyy" ) & "  vs  "
+            & FORMAT ( EDATE ( _from, -12 ), "mmm yyyy" ) & " - " & FORMAT ( EDATE ( _to, -12 ), "mmm yyyy" )
+    )
+
+
+// ======================================================================
+// 6. Data Quality
+// ======================================================================
+// All rows delivered in Vendor_Market_Data.
+// Format: #,0
+[Raw Rows] :=
+COUNTROWS ( DQ_RowAudit ) + 0
+
+// Rows in FactSales.
+// Format: #,0
+[Accepted Rows] :=
+COUNTROWS ( FactSales ) + 0
+
+// Accepted rows counted from the audit table (cross-check).
+// Format: #,0
+[Accepted Rows (Audit)] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Accepted" ) + 0
+
+// Duplicate invoice lines removed.
+// Format: #,0
+[Duplicate Rows Removed] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Duplicate" ) + 0
+
+// Rows for products flagged inactive.
+// Format: #,0
+[Inactive Rows Rejected] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Inactive product" ) + 0
+
+// Rows for codes absent from Product_Scope.
+// Format: #,0
+[Unmapped Rows Rejected] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Unmapped product" ) + 0
+
+// Rows quarantined because the product has conflicting active mappings.
+// Format: #,0
+[Ambiguous Rows Rejected] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Ambiguous mapping" ) + 0
+
+// Rows dated outside the mapping effective window.
+// Format: #,0
+[Outside Window Rows Rejected] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[RowStatus] = "Rejected - Outside effective window" ) + 0
+
+// All rejected rows.
+// Format: #,0
+[Rejected Rows] :=
+[Raw Rows] - [Accepted Rows (Audit)]
+
+// Rejected rows as a share of raw rows.
+// Format: 0.0%
+[Rejected Rows %] :=
+DIVIDE ( [Rejected Rows], [Raw Rows] )
+
+// Rows in context as a share of all raw rows (for status tables).
+// Format: 0.0%
+[Row Share of Raw %] :=
+DIVIDE ( COUNTROWS ( DQ_RowAudit ), CALCULATE ( COUNTROWS ( DQ_RowAudit ), REMOVEFILTERS ( DQ_RowAudit[RowStatus], DQ_RowAudit[StatusSortOrder] ) ) )
+
+// SalesAmount of every raw row (includes duplicates).
+// Format: \$#,0;(\$#,0);\$#,0
+[Raw Sales] :=
+SUM ( DQ_RowAudit[SalesAmount] )
+
+// SalesAmount of rejected rows.
+// Format: \$#,0;(\$#,0);\$#,0
+[Rejected Sales] :=
+CALCULATE ( SUM ( DQ_RowAudit[SalesAmount] ), DQ_RowAudit[RowStatus] <> "Accepted" )
+
+// Raw - duplicates - inactive - unmapped - ambiguous - outside window - accepted. Must be 0.
+// Format: #,0
+[Row Reconciliation Difference] :=
+[Raw Rows] - [Duplicate Rows Removed] - [Inactive Rows Rejected] - [Unmapped Rows Rejected] - [Ambiguous Rows Rejected] - [Outside Window Rows Rejected] - [Accepted Rows]
+
+// Raw sales - rejected sales - accepted (Market) sales. Must be 0.
+// Format: \$#,0;(\$#,0);\$#,0
+[Sales Reconciliation Difference] :=
+[Raw Sales] - [Rejected Sales] - [Market Sales]
+
+// Rows whose product code needed trimming/upper-casing.
+// Format: #,0
+[Rows With Normalised Code] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[CodeWasNormalised] = TRUE () ) + 0
+
+// Rows whose description differs from the canonical description.
+// Format: #,0
+[Rows With Alternative Description] :=
+CALCULATE ( COUNTROWS ( DQ_RowAudit ), DQ_RowAudit[IsAltDescription] = TRUE () ) + 0
+
+// Product codes delivered with more than one description.
+// Format: 0
+[Codes With Multiple Descriptions] :=
+CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[DistinctDescriptions] > 1 ) + 0
+
+// Codes with conflicting active mappings.
+// Format: 0
+[Ambiguous Product Codes] :=
+CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[MappingStatus] = "Ambiguous" ) + 0
+
+// Codes flagged inactive.
+// Format: 0
+[Inactive Product Codes] :=
+CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[MappingStatus] = "Inactive" ) + 0
+
+// Vendor codes not found in Product_Scope.
+// Format: 0
+[Unmapped Product Codes] :=
+CALCULATE ( COUNTROWS ( DQ_ProductMapping ), DQ_ProductMapping[MappingStatus] = "Unmapped" ) + 0
+
+// Exact duplicate rows removed from Product_Scope.
+// Format: 0
+[Duplicate Scope Rows Collapsed] :=
+SUM ( DQ_ProductMapping[ScopeRowsRaw] ) - SUM ( DQ_ProductMapping[ScopeRowsDistinct] )
+
+// Sales a naive (non-deduplicated) merge to Product_Scope would have double-counted.
+// Format: \$#,0;(\$#,0);\$#,0
+[Sales At Risk Of Double Count] :=
+SUM ( DQ_ProductMapping[NaiveJoinExtraSales] )
+
+// When the dataset was last refreshed.
+// Format: dd-mmm-yyyy hh:nn
+[Refresh Timestamp (UTC)] :=
+MAX ( RefreshInfo[RefreshTimestampUTC] )
+
+// Refresh text for page headers.
+// Format: text
+[Refresh Label] :=
+"Refreshed " & FORMAT ( [Refresh Timestamp (UTC)], "dd-mmm-yyyy hh:nn" ) & " UTC"
+
+// Expected value from ControlTotals.
+// Format: #,0.00
+[Control Expected Value] :=
+SUM ( ControlTotals[ExpectedValue] )
+
+// Value produced by the model for the selected control metric (ignores date filters).
+// Format: #,0.00
+[Control Model Value] :=
+VAR _metric = SELECTEDVALUE ( ControlTotals[Metric] )
+VAR _month = IF ( LEFT ( _metric, 11 ) = "CleanSales_", MID ( _metric, 12, 7 ) )
+RETURN
+    SWITCH (
+        TRUE (),
+        _metric = "RawRows", CALCULATE ( [Raw Rows], REMOVEFILTERS ( DimDate ) ),
+        _metric = "CleanRows", CALCULATE ( [Accepted Rows], REMOVEFILTERS ( DimDate ) ),
+        _metric = "DuplicateTransactionsRemoved", CALCULATE ( [Duplicate Rows Removed], REMOVEFILTERS ( DimDate ) ),
+        _metric = "InactiveOrUnmappedRejected", CALCULATE ( [Inactive Rows Rejected] + [Unmapped Rows Rejected] + [Outside Window Rows Rejected], REMOVEFILTERS ( DimDate ) ),
+        _metric = "AmbiguousMappingRejected", CALCULATE ( [Ambiguous Rows Rejected], REMOVEFILTERS ( DimDate ) ),
+        _metric = "CleanSales", CALCULATE ( [Market Sales], REMOVEFILTERS ( DimDate ) ),
+        _metric = "CleanUnits", CALCULATE ( [Market Units], REMOVEFILTERS ( DimDate ) ),
+        NOT ISBLANK ( _month ), CALCULATE ( [Market Sales], REMOVEFILTERS ( DimDate ), DimDate[YearMonth] = _month )
+    )
+
+// Model minus expected.
+// Format: #,0.00
+[Control Difference] :=
+IF ( NOT ISBLANK ( [Control Expected Value] ), [Control Model Value] - [Control Expected Value] )
+
+// PASS when |difference| < 0.005.
+// Format: text
+[Control Status] :=
+IF ( NOT ISBLANK ( [Control Expected Value] ), IF ( ABS ( [Control Difference] ) < 0.005, "PASS", "FAIL" ) )
+
+// e.g. 27 of 27 control checks pass.
+// Format: text
+[Control Checks Summary] :=
+VAR _total = COUNTROWS ( ALL ( ControlTotals[Metric] ) )
+VAR _pass = COUNTROWS ( FILTER ( ALL ( ControlTotals[Metric] ), [Control Status] = "PASS" ) )
+RETURN
+    FORMAT ( _pass + 0, "0" ) & " of " & FORMAT ( _total, "0" ) & " control checks pass"
+        & IF ( _pass < _total, "  (national/unsecured view required for full reconciliation)", "" )
+
+
+// ======================================================================
+// 7. Security
+// ======================================================================
+// USERPRINCIPALNAME() of the viewer (use View as > Other user to test RLS).
+// Format: text
+[Current User] :=
+USERPRINCIPALNAME ()
+
+// Facilities visible to the current user after RLS.
+// Format: 0
+[Visible Facilities] :=
+COUNTROWS ( DimFacility ) + 0
+
+// Describes the viewer's RLS scope.
+// Format: text
+[Access Scope] :=
+VAR _user = LOWER ( USERPRINCIPALNAME () )
+VAR _levels = CALCULATETABLE ( VALUES ( UserAccess[AccessLevel] ), UserAccess[UserEmail] = _user )
+RETURN
+    "Viewing as " & _user & "  |  "
+        & IF ( ISEMPTY ( _levels ), "not in Facility_Access (author / unsecured view)", CONCATENATEX ( _levels, UserAccess[AccessLevel], ", " ) & " access" )
+        & "  |  " & FORMAT ( [Visible Facilities], "0" ) & " facilities visible"
+
+
+// ======================================================================
+// ROW-LEVEL SECURITY - role: Dynamic Facility Access
+// ======================================================================
+// Table filter on DimFacility:
+VAR _user = LOWER ( USERPRINCIPALNAME () )
+VAR _access = FILTER ( ALL ( UserAccess ), UserAccess[UserEmail] = _user )
+RETURN
+    NOT ISEMPTY ( FILTER ( _access, UserAccess[AccessLevel] = "National" ) )
+        || DimFacility[Region] IN SELECTCOLUMNS ( FILTER ( _access, UserAccess[AccessLevel] = "Region" ), "Region", UserAccess[Region] )
+        || DimFacility[State] IN SELECTCOLUMNS ( FILTER ( _access, UserAccess[AccessLevel] = "State" ), "State", UserAccess[State] )
+        || DimFacility[FacilityID] IN SELECTCOLUMNS ( FILTER ( _access, UserAccess[AccessLevel] = "Facility" ), "FacilityID", UserAccess[FacilityID] )
+
+// Table filter on UserAccess:
+UserAccess[UserEmail] = LOWER ( USERPRINCIPALNAME () )

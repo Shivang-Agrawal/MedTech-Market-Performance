@@ -1,0 +1,17 @@
+/// Dynamic RLS driven by Facility_Access: Facility / Region / (State) / National access levels resolved from USERPRINCIPALNAME().
+role 'Dynamic Facility Access'
+	modelPermission: read
+
+	tablePermission DimFacility =
+			VAR _user = LOWER ( USERPRINCIPALNAME () )
+			VAR _access = FILTER ( ALL ( UserAccess ), UserAccess[UserEmail] = _user )
+			RETURN
+			    NOT ISEMPTY ( FILTER ( _access, UserAccess[AccessLevel] = "National" ) )
+			        || DimFacility[Region] IN SELECTCOLUMNS ( FILTER ( _access, UserAccess[AccessLevel] = "Region" ), "Region", UserAccess[Region] )
+			        || DimFacility[State] IN SELECTCOLUMNS ( FILTER ( _access, UserAccess[AccessLevel] = "State" ), "State", UserAccess[State] )
+			        || DimFacility[FacilityID] IN SELECTCOLUMNS ( FILTER ( _access, UserAccess[AccessLevel] = "Facility" ), "FacilityID", UserAccess[FacilityID] )
+
+	tablePermission UserAccess = UserAccess[UserEmail] = LOWER ( USERPRINCIPALNAME () )
+
+	annotation PBI_Id = 4506cd9d203a5551b081803b8fc60179
+

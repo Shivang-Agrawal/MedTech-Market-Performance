@@ -1,0 +1,213 @@
+/// Every raw vendor row with its data-quality outcome. Drives the Data Quality page. Secured via DimFacility.
+table DQ_RowAudit
+	lineageTag: cb697359-739c-5d05-940b-4509b402fd3b
+
+	column RawRowId
+		dataType: int64
+		formatString: 0
+		lineageTag: e3fd3bc9-48cc-594d-bcff-a87c5d31ecc9
+		summarizeBy: none
+		sourceColumn: RawRowId
+
+		annotation SummarizationSetBy = Automatic
+
+	column InvoiceNumber
+		dataType: string
+		lineageTag: 610b1d01-1a35-5a2a-b5f4-c0ffdb9ec5df
+		summarizeBy: none
+		sourceColumn: InvoiceNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column InvoiceLineNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: c839632d-ec67-503e-b58f-e1b72b49cd72
+		summarizeBy: none
+		sourceColumn: InvoiceLineNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column TransactionDate
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: 9097575a-97a7-5987-842f-be425125b64f
+		summarizeBy: none
+		sourceColumn: TransactionDate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column FacilityID
+		dataType: string
+		lineageTag: 8ee38736-528a-5b67-860d-9739984d60d3
+		summarizeBy: none
+		sourceColumn: FacilityID
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Code exactly as delivered (may contain spaces / lower case)
+	column ProductCodeRaw
+		dataType: string
+		lineageTag: 4ea96b3f-cfe7-5f4b-83de-05f04aab94b3
+		summarizeBy: none
+		sourceColumn: ProductCodeRaw
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Normalised code
+	column ProductCode
+		dataType: string
+		lineageTag: 2c9a9b51-6724-5712-9a1c-f3aae8247111
+		summarizeBy: none
+		sourceColumn: ProductCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column CodeWasNormalised
+		dataType: boolean
+		lineageTag: a4779472-6198-58fc-ae89-30415e1d6d0f
+		summarizeBy: none
+		sourceColumn: CodeWasNormalised
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductDescription
+		dataType: string
+		lineageTag: fd744ca8-c178-50d2-a161-aeaa870f7c8d
+		summarizeBy: none
+		sourceColumn: ProductDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsAltDescription
+		dataType: boolean
+		lineageTag: be17a049-c41b-538c-9609-2250bcb45659
+		summarizeBy: none
+		sourceColumn: IsAltDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	column Manufacturer
+		dataType: string
+		lineageTag: 9c3af5e0-228b-5744-87af-60a960053c08
+		summarizeBy: none
+		sourceColumn: Manufacturer
+
+		annotation SummarizationSetBy = Automatic
+
+	column Units
+		dataType: int64
+		formatString: #,0
+		lineageTag: 2366a969-0a28-503c-a416-954d57a1ba60
+		summarizeBy: none
+		sourceColumn: Units
+
+		annotation SummarizationSetBy = Automatic
+
+	column SalesAmount
+		dataType: decimal
+		formatString: \$#,0.00;(\$#,0.00);\$#,0.00
+		lineageTag: 478b9beb-7359-539d-9609-8c0aa0c48f03
+		summarizeBy: none
+		sourceColumn: SalesAmount
+
+		annotation SummarizationSetBy = Automatic
+
+	column BatchID
+		dataType: string
+		lineageTag: 37cfca51-0644-544f-b6c3-17fddc2b6683
+		summarizeBy: none
+		sourceColumn: BatchID
+
+		annotation SummarizationSetBy = Automatic
+
+	column IngestedAt
+		dataType: dateTime
+		formatString: dd-mmm-yyyy
+		lineageTag: 9b628f85-b55e-594c-b790-bbfb1c622fe5
+		summarizeBy: none
+		sourceColumn: IngestedAt
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = DateTime
+
+	column InvoiceMonthMatchesDate
+		dataType: boolean
+		lineageTag: 60caf66e-4eaa-536a-853f-d6de5ffa4160
+		summarizeBy: none
+		sourceColumn: InvoiceMonthMatchesDate
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsDuplicate
+		dataType: boolean
+		lineageTag: 22ce573c-c488-5fa4-bb7b-14037240e993
+		summarizeBy: none
+		sourceColumn: IsDuplicate
+
+		annotation SummarizationSetBy = Automatic
+
+	column DuplicateType
+		dataType: string
+		lineageTag: 02684d74-ed98-5dff-b5a9-473e1ebc6dfe
+		summarizeBy: none
+		sourceColumn: DuplicateType
+
+		annotation SummarizationSetBy = Automatic
+
+	column MappingStatus
+		dataType: string
+		lineageTag: 08c91af8-88df-59c8-a19c-0b4efb64a3b9
+		summarizeBy: none
+		sourceColumn: MappingStatus
+
+		annotation SummarizationSetBy = Automatic
+
+	column RowStatus
+		dataType: string
+		lineageTag: cb06554c-750f-5d72-bcad-9ce4cb64dc81
+		summarizeBy: none
+		sourceColumn: RowStatus
+		sortByColumn: StatusSortOrder
+
+		annotation SummarizationSetBy = Automatic
+
+	column RejectReason
+		dataType: string
+		lineageTag: 9a90b134-db99-517f-a940-b7cb2af3530d
+		summarizeBy: none
+		sourceColumn: RejectReason
+
+		annotation SummarizationSetBy = Automatic
+
+	column StatusSortOrder
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 9173e05a-bd0f-572b-b69c-f85693f6c55c
+		summarizeBy: none
+		sourceColumn: StatusSortOrder
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DQ_RowAudit = m
+		mode: import
+		source =
+				let
+				    Source = stg_VendorAudit,
+				    Selected = Table.SelectColumns(Source, {"RawRowId", "InvoiceNumber", "InvoiceLineNumber", "TransactionDate", "FacilityID", "ProductCodeRaw", "ProductCode", "CodeWasNormalised", "ProductDescription", "IsAltDescription", "Manufacturer", "Units", "SalesAmount", "BatchID", "IngestedAt", "InvoiceMonthMatchesDate", "IsDuplicate", "DuplicateType", "MappingStatus", "RowStatus", "RejectReason", "StatusSortOrder"}),
+				    Typed = Table.TransformColumnTypes(Selected, {
+				        {"RawRowId", Int64.Type}, {"InvoiceNumber", type text}, {"InvoiceLineNumber", Int64.Type}, {"TransactionDate", type date},
+				        {"FacilityID", type text}, {"ProductCodeRaw", type text}, {"ProductCode", type text}, {"CodeWasNormalised", type logical},
+				        {"ProductDescription", type text}, {"IsAltDescription", type logical}, {"Manufacturer", type text}, {"Units", Int64.Type},
+				        {"SalesAmount", Currency.Type}, {"BatchID", type text}, {"IngestedAt", type datetime}, {"InvoiceMonthMatchesDate", type logical},
+				        {"IsDuplicate", type logical}, {"DuplicateType", type text}, {"MappingStatus", type text}, {"RowStatus", type text},
+				        {"RejectReason", type text}, {"StatusSortOrder", Int64.Type}})
+				in
+				    Typed
+
+	annotation PBI_ResultType = Table
+

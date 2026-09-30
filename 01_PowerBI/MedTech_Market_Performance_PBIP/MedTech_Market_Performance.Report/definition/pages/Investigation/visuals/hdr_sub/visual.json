@@ -1,0 +1,38 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
+  "name": "hdr_sub",
+  "position": {
+    "x": 16,
+    "y": 38,
+    "z": 200,
+    "height": 22,
+    "width": 700,
+    "tabOrder": 200
+  },
+  "visual": {
+    "visualType": "textbox",
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "Category > Subcategory > Brand > Product, geography drill-down and contribution | like-for-like complete months",
+                    "textStyle": {
+                      "fontSize": "10pt",
+                      "color": "#6C757D",
+                      "fontFamily": "Segoe UI"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

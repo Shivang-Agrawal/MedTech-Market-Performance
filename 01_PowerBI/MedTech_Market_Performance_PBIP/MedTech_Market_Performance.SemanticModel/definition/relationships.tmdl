@@ -1,0 +1,24 @@
+relationship 776303c0-0235-5e70-8c6f-0d3345f0c5ef
+	fromColumn: FactSales.TransactionDate
+	toColumn: DimDate.Date
+
+relationship 9545e6ef-b4a0-56ef-b064-c2952dbde6f4
+	fromColumn: FactSales.ProductCode
+	toColumn: DimProduct.ProductCode
+
+relationship 378fc430-0dbb-5232-ae5f-ea7a8eb2d413
+	fromColumn: FactSales.FacilityID
+	toColumn: DimFacility.FacilityID
+
+relationship bc404591-ebc0-56e6-a5fe-f820aa38e9e1
+	fromColumn: FactSales.Manufacturer
+	toColumn: DimManufacturer.Manufacturer
+
+relationship bfc147bc-f97b-520f-a739-f0904fc7dde3
+	fromColumn: DQ_RowAudit.TransactionDate
+	toColumn: DimDate.Date
+
+relationship 5ac56d9a-f846-5f86-a18d-10d815ed7cfe
+	fromColumn: DQ_RowAudit.FacilityID
+	toColumn: DimFacility.FacilityID
+

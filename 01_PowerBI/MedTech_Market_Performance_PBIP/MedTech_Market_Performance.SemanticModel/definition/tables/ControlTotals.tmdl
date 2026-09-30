@@ -1,0 +1,75 @@
+/// Expected control totals used for reconciliation on the Data Quality page.
+table ControlTotals
+	lineageTag: 94dda8d3-d06c-5853-bc4f-f2363e759310
+
+	column Metric
+		dataType: string
+		lineageTag: 83b64701-3071-5e25-bad8-94354f1fd6b8
+		summarizeBy: none
+		sourceColumn: Metric
+		sortByColumn: SortOrder
+
+		annotation SummarizationSetBy = Automatic
+
+	column ExpectedValue
+		dataType: double
+		formatString: #,0.00
+		lineageTag: 7ca6d7d1-2958-5dfd-8c95-3870977b9bca
+		summarizeBy: none
+		sourceColumn: ExpectedValue
+
+		annotation SummarizationSetBy = Automatic
+
+	column MetricGroup
+		dataType: string
+		lineageTag: 1a566626-5b6d-5cd4-abae-d8e0ec1d4ac2
+		summarizeBy: none
+		sourceColumn: MetricGroup
+
+		annotation SummarizationSetBy = Automatic
+
+	column SortOrder
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 67eac388-6103-51b5-9ea6-62ba26829300
+		summarizeBy: none
+		sourceColumn: SortOrder
+
+		annotation SummarizationSetBy = Automatic
+
+	column ControlSource
+		dataType: string
+		lineageTag: e8781a9e-2405-5380-9e8c-e78fe2de6f06
+		summarizeBy: none
+		sourceColumn: ControlSource
+
+		annotation SummarizationSetBy = Automatic
+
+	partition ControlTotals = m
+		mode: import
+		source =
+				let
+				    Source = src_Workbook,
+				    ControlSheet = Table.SelectRows(Source, each [Item] = "_Control_Totals" and [Kind] = "Sheet"),
+				    // Fallback: independently recomputed control totals (documented in Submission Notes) if the sheet is absent
+				    Fallback = #table(type table [Metric = text, Value = number], {
+				        {"RawRows", 12055}, {"CleanRows", 10456}, {"DuplicateTransactionsRemoved", 55}, {"InactiveOrUnmappedRejected", 1146},
+				        {"AmbiguousMappingRejected", 398}, {"CleanSales", 17478530.67}, {"CleanUnits", 99465}}),
+				    Loaded = if Table.IsEmpty(ControlSheet) then Fallback else Table.PromoteHeaders(ControlSheet{0}[Data], [PromoteAllScalars = true]),
+				    SourceLabel = if Table.IsEmpty(ControlSheet) then "Independent recomputation (fallback)" else "Workbook sheet _Control_Totals",
+				    SelectedColumns = Table.SelectColumns(Loaded, {"Metric", "Value"}),
+				    Renamed = Table.RenameColumns(SelectedColumns, {{"Value", "ExpectedValue"}}),
+				    Typed = Table.TransformColumnTypes(Renamed, {{"Metric", type text}, {"ExpectedValue", type number}}),
+				    RemovedBlank = Table.SelectRows(Typed, each [Metric] <> null and [Metric] <> ""),
+				    AddedGroup = Table.AddColumn(RemovedBlank, "MetricGroup", each
+				        if Text.StartsWith([Metric], "CleanSales_") then "3. Monthly accepted sales"
+				        else if List.Contains({"CleanSales", "CleanUnits"}, [Metric]) then "2. Accepted totals"
+				        else "1. Row counts", type text),
+				    AddedSort = Table.AddIndexColumn(AddedGroup, "SortOrder", 1, 1, Int64.Type),
+				    AddedSource = Table.AddColumn(AddedSort, "ControlSource", each SourceLabel, type text)
+				in
+				    AddedSource
+
+	annotation PBI_ResultType = Table
+

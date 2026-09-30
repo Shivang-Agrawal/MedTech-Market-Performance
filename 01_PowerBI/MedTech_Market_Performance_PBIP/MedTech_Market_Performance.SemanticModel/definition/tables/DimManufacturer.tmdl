@@ -1,0 +1,55 @@
+/// Manufacturer lookup; IsOurCompany drives Company Sales.
+table DimManufacturer
+	lineageTag: c59592ed-d9a3-5858-b104-c666cdc0b0ff
+
+	column Manufacturer
+		dataType: string
+		lineageTag: 8dd1e0e7-bb7e-5fb6-99e3-cdd1cf3c29d0
+		summarizeBy: none
+		sourceColumn: Manufacturer
+		sortByColumn: ManufacturerSort
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsOurCompany
+		dataType: boolean
+		lineageTag: a692174f-1cdf-5dd4-ae37-8070276c6f13
+		summarizeBy: none
+		sourceColumn: IsOurCompany
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Our Company / Competitor
+	column ManufacturerType
+		dataType: string
+		lineageTag: f750eb3e-18b8-57b8-a3a9-22592cb34fc3
+		summarizeBy: none
+		sourceColumn: ManufacturerType
+
+		annotation SummarizationSetBy = Automatic
+
+	column ManufacturerSort
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 90d69648-0dce-5abc-a47c-70ec7809205c
+		summarizeBy: none
+		sourceColumn: ManufacturerSort
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimManufacturer = m
+		mode: import
+		source =
+				let
+				    Source = Table.SelectRows(stg_VendorDedup, each not [IsDuplicate]),
+				    Distinct = Table.Distinct(Table.SelectColumns(Source, {"Manufacturer"})),
+				    AddedIsOurCompany = Table.AddColumn(Distinct, "IsOurCompany", each [Manufacturer] = OurCompanyName, type logical),
+				    AddedType = Table.AddColumn(AddedIsOurCompany, "ManufacturerType", each if [IsOurCompany] then "Our Company" else "Competitor", type text),
+				    Sorted = Table.Sort(AddedType, {{"IsOurCompany", Order.Descending}, {"Manufacturer", Order.Ascending}}),
+				    AddedSort = Table.AddIndexColumn(Sorted, "ManufacturerSort", 1, 1, Int64.Type)
+				in
+				    AddedSort
+
+	annotation PBI_ResultType = Table
+

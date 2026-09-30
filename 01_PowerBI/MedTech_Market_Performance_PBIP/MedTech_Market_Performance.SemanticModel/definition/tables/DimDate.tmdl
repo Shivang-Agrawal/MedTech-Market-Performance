@@ -1,0 +1,182 @@
+/// Marked date table (daily). Completeness flags come from DQ_PeriodCompleteness.
+table DimDate
+	lineageTag: 93b2d989-24e4-522d-9194-c9a3b8f571a0
+	dataCategory: Time
+
+	column Date
+		dataType: dateTime
+		isKey
+		formatString: dd-mmm-yyyy
+		lineageTag: 02ff07a9-cfbd-5151-92d7-1d326ca6e24b
+		summarizeBy: none
+		sourceColumn: Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: ee9090c9-6383-5b2b-8041-7d30ef883a9e
+		summarizeBy: none
+		sourceColumn: Year
+
+		annotation SummarizationSetBy = Automatic
+
+	column Quarter
+		dataType: string
+		lineageTag: 62c045d8-c716-5e72-9672-2b596ebb250c
+		summarizeBy: none
+		sourceColumn: Quarter
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthNumber
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 5297cd0a-8035-552e-865b-7d75434ac7e3
+		summarizeBy: none
+		sourceColumn: MonthNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthName
+		dataType: string
+		lineageTag: a50ef3c3-461f-58a7-9a29-a376b680938d
+		summarizeBy: none
+		sourceColumn: MonthName
+		sortByColumn: MonthNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	/// First day of month
+	column MonthStart
+		dataType: dateTime
+		formatString: mmm yyyy
+		lineageTag: cc6fd984-f827-5e8a-8d4a-fb744a217a4b
+		summarizeBy: none
+		sourceColumn: MonthStart
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column YearMonthKey
+		dataType: int64
+		isHidden
+		formatString: 0
+		lineageTag: 2927aa7a-d27d-55c6-84fa-7ef7a1dbbf0d
+		summarizeBy: none
+		sourceColumn: YearMonthKey
+
+		annotation SummarizationSetBy = Automatic
+
+	/// yyyy-MM text key
+	column YearMonth
+		dataType: string
+		lineageTag: 050633b5-b4d7-5c06-9045-c58791b78384
+		summarizeBy: none
+		sourceColumn: YearMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Month label, e.g. Jul 2026
+	column MonthYear
+		dataType: string
+		lineageTag: 9d639998-0a47-5aa3-bceb-e7b4f5d06179
+		summarizeBy: none
+		sourceColumn: MonthYear
+		sortByColumn: YearMonthKey
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Complete / Incomplete / No Data
+	column PeriodStatus
+		dataType: string
+		lineageTag: d8115622-bf22-5c42-8638-7e69609a2b6c
+		summarizeBy: none
+		sourceColumn: PeriodStatus
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsCompleteMonth
+		dataType: boolean
+		lineageTag: 915b9379-50fe-5d10-8695-b51d6152e48a
+		summarizeBy: none
+		sourceColumn: IsCompleteMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsLatestCompleteMonth
+		dataType: boolean
+		lineageTag: 8e5dc391-a5c1-58a2-b48e-cf45a725c4ea
+		summarizeBy: none
+		sourceColumn: IsLatestCompleteMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	/// 0 = latest complete month, -1 = prior month, +1 = incomplete month after it
+	column MonthOffset
+		dataType: int64
+		formatString: 0
+		lineageTag: 458f4a78-bfd1-50ac-b778-8f5e8a736c97
+		summarizeBy: none
+		sourceColumn: MonthOffset
+
+		annotation SummarizationSetBy = Automatic
+
+	column HasCompletePriorYearMonth
+		dataType: boolean
+		isHidden
+		lineageTag: 354ad9c3-360b-552b-89a1-9127a66ecce0
+		summarizeBy: none
+		sourceColumn: HasCompletePriorYearMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Month is complete AND same month last year is complete - basis for all YoY measures
+	column IsYoYComparable
+		dataType: boolean
+		lineageTag: 589cc455-dd39-517f-946e-1ac959475b31
+		summarizeBy: none
+		sourceColumn: IsYoYComparable
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimDate = m
+		mode: import
+		source =
+				let
+				    Completeness = DQ_PeriodCompleteness,
+				    CompleteMonths = List.Buffer(Table.SelectRows(Completeness, each [IsComplete])[MonthStart]),
+				    LatestCompleteMonth = List.Max(CompleteMonths),
+				    StartDate = Date.StartOfYear(List.Min(stg_VendorRaw[TransactionDate])),
+				    EndDate = Date.EndOfYear(List.Max(stg_VendorRaw[TransactionDate])),
+				    DateList = List.Dates(StartDate, Duration.Days(EndDate - StartDate) + 1, #duration(1, 0, 0, 0)),
+				    DateTable = Table.FromList(DateList, Splitter.SplitByNothing(), type table [Date = date]),
+				    AddedYear = Table.AddColumn(DateTable, "Year", each Date.Year([Date]), Int64.Type),
+				    AddedQuarter = Table.AddColumn(AddedYear, "Quarter", each "Q" & Text.From(Date.QuarterOfYear([Date])), type text),
+				    AddedMonthNumber = Table.AddColumn(AddedQuarter, "MonthNumber", each Date.Month([Date]), Int64.Type),
+				    AddedMonthName = Table.AddColumn(AddedMonthNumber, "MonthName", each Date.ToText([Date], [Format = "MMM", Culture = "en-US"]), type text),
+				    AddedMonthStart = Table.AddColumn(AddedMonthName, "MonthStart", each Date.StartOfMonth([Date]), type date),
+				    AddedYearMonthKey = Table.AddColumn(AddedMonthStart, "YearMonthKey", each Date.Year([Date]) * 100 + Date.Month([Date]), Int64.Type),
+				    AddedYearMonth = Table.AddColumn(AddedYearMonthKey, "YearMonth", each Date.ToText([Date], [Format = "yyyy-MM", Culture = "en-US"]), type text),
+				    AddedMonthYearLabel = Table.AddColumn(AddedYearMonth, "MonthYear", each Date.ToText([Date], [Format = "MMM yyyy", Culture = "en-US"]), type text),
+				    JoinedStatus = Table.NestedJoin(AddedMonthYearLabel, {"MonthStart"}, Table.SelectColumns(Completeness, {"MonthStart", "PeriodStatus"}), {"MonthStart"}, "C", JoinKind.LeftOuter),
+				    ExpandedStatus = Table.ExpandTableColumn(JoinedStatus, "C", {"PeriodStatus"}, {"PeriodStatusRaw"}),
+				    AddedPeriodStatus = Table.AddColumn(ExpandedStatus, "PeriodStatus", each if [PeriodStatusRaw] = null then "No Data" else [PeriodStatusRaw], type text),
+				    AddedIsComplete = Table.AddColumn(AddedPeriodStatus, "IsCompleteMonth", each [PeriodStatus] = "Complete", type logical),
+				    AddedIsLatest = Table.AddColumn(AddedIsComplete, "IsLatestCompleteMonth", each [MonthStart] = LatestCompleteMonth, type logical),
+				    AddedOffset = Table.AddColumn(AddedIsLatest, "MonthOffset", each (Date.Year([MonthStart]) - Date.Year(LatestCompleteMonth)) * 12 + Date.Month([MonthStart]) - Date.Month(LatestCompleteMonth), Int64.Type),
+				    // Like-for-like YoY: current month complete AND the same month last year complete
+				    AddedHasPY = Table.AddColumn(AddedOffset, "HasCompletePriorYearMonth", each List.Contains(CompleteMonths, Date.AddYears([MonthStart], -1)), type logical),
+				    AddedYoYComparable = Table.AddColumn(AddedHasPY, "IsYoYComparable", each [IsCompleteMonth] and [HasCompletePriorYearMonth], type logical),
+				    RemovedHelper = Table.RemoveColumns(AddedYoYComparable, {"PeriodStatusRaw"}),
+				    Sorted = Table.Sort(RemovedHelper, {{"Date", Order.Ascending}})
+				in
+				    Sorted
+
+	annotation PBI_ResultType = Table
+

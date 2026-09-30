@@ -1,0 +1,74 @@
+/// Facility_Access security mapping (de-duplicated, lower-case e-mail). Disconnected; used only by the RLS role.
+table UserAccess
+	isHidden
+	lineageTag: bccbf273-7d7e-57d6-8ba1-2f57ed4a1dae
+
+	column UserEmail
+		dataType: string
+		lineageTag: dd79d47d-6af5-5883-9898-7db53ef5690f
+		summarizeBy: none
+		sourceColumn: UserEmail
+
+		annotation SummarizationSetBy = Automatic
+
+	column Region
+		dataType: string
+		lineageTag: e5a24463-50d9-5908-be77-648fa2ba3a47
+		summarizeBy: none
+		sourceColumn: Region
+
+		annotation SummarizationSetBy = Automatic
+
+	column State
+		dataType: string
+		lineageTag: 59e3159b-6943-5306-bd92-ef038bf97721
+		summarizeBy: none
+		sourceColumn: State
+
+		annotation SummarizationSetBy = Automatic
+
+	column FacilityID
+		dataType: string
+		lineageTag: fecd1365-0a2b-5dac-a374-8ff6049132a1
+		summarizeBy: none
+		sourceColumn: FacilityID
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Facility / Region / National
+	column AccessLevel
+		dataType: string
+		lineageTag: 116326e9-d651-5056-8fe0-5fa3e37fe6ce
+		summarizeBy: none
+		sourceColumn: AccessLevel
+
+		annotation SummarizationSetBy = Automatic
+
+	partition UserAccess = m
+		mode: import
+		source =
+				let
+				    Source = src_Workbook,
+				    SheetData = Source{[Item = "Facility_Access", Kind = "Sheet"]}[Data],
+				    PromotedHeaders = Table.PromoteHeaders(SheetData, [PromoteAllScalars = true]),
+				    RequiredColumns = {"UserEmail", "Region", "State", "FacilityID", "AccessLevel"},
+				    MissingColumns = List.Difference(RequiredColumns, Table.ColumnNames(PromotedHeaders)),
+				    SchemaValidated =
+				        if List.IsEmpty(MissingColumns)
+				        then Table.SelectColumns(PromotedHeaders, RequiredColumns)
+				        else error Error.Record("SchemaValidationFailed", "Facility_Access is missing required column(s): " & Text.Combine(MissingColumns, ", ")),
+				    TypedColumns = Table.TransformColumnTypes(SchemaValidated, {{"UserEmail", type text}, {"Region", type text}, {"State", type text}, {"FacilityID", type text}, {"AccessLevel", type text}}),
+				    // UPN comparison is done in lower case; blank cells become null
+				    Normalised = Table.TransformColumns(TypedColumns, {
+				        {"UserEmail", each Text.Lower(Text.Trim(_)), type text}, {"Region", each if _ = null or Text.Trim(_) = "" then null else Text.Trim(_), type text},
+				        {"State", each if _ = null or Text.Trim(_) = "" then null else Text.Upper(Text.Trim(_)), type text},
+				        {"FacilityID", each if _ = null or Text.Trim(_) = "" then null else Text.Upper(Text.Trim(_)), type text},
+				        {"AccessLevel", each Text.Proper(Text.Trim(_)), type text}}),
+				    RemovedBlankUsers = Table.SelectRows(Normalised, each [UserEmail] <> null and [UserEmail] <> ""),
+				    // westlead@example.com is listed twice - collapse exact duplicates
+				    Deduplicated = Table.Distinct(RemovedBlankUsers)
+				in
+				    Deduplicated
+
+	annotation PBI_ResultType = Table
+

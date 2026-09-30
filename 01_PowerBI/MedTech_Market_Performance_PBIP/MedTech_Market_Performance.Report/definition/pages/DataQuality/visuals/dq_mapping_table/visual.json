@@ -1,0 +1,307 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "dq_mapping_table",
+  "position": {
+    "x": 16,
+    "y": 836,
+    "z": 2100,
+    "height": 250,
+    "width": 1248,
+    "tabOrder": 2100
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "ProductCode"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.ProductCode",
+              "nativeQueryRef": "ProductCode"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "MappingStatus"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.MappingStatus",
+              "nativeQueryRef": "MappingStatus"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "AcceptedInModel"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.AcceptedInModel",
+              "nativeQueryRef": "AcceptedInModel"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "ScopeRowsRaw"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.ScopeRowsRaw",
+              "nativeQueryRef": "ScopeRowsRaw"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "ActiveMappings"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.ActiveMappings",
+              "nativeQueryRef": "ActiveMappings"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "MappingDetail"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.MappingDetail",
+              "nativeQueryRef": "MappingDetail"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "VendorRows"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.VendorRows",
+              "nativeQueryRef": "VendorRows"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "VendorSales"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.VendorSales",
+              "nativeQueryRef": "VendorSales"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "RawCodeVariants"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.RawCodeVariants",
+              "nativeQueryRef": "RawCodeVariants"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "DistinctDescriptions"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.DistinctDescriptions",
+              "nativeQueryRef": "DistinctDescriptions"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "NaiveJoinExtraSales"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.NaiveJoinExtraSales",
+              "nativeQueryRef": "NaiveJoinExtraSales"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DQ_ProductMapping"
+                    }
+                  },
+                  "Property": "MappingReason"
+                }
+              },
+              "queryRef": "DQ_ProductMapping.MappingReason",
+              "nativeQueryRef": "MappingReason"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "DQ_ProductMapping"
+                  }
+                },
+                "Property": "ProductCode"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ]
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "fontSize": {
+              "expr": {
+                "Literal": {
+                  "Value": "11D"
+                }
+              }
+            },
+            "bold": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Product mapping decisions: duplicates, conflicting active mappings, inactive/unmapped codes'"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "background": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#FFFFFF'"
+                    }
+                  }
+                }
+              }
+            },
+            "transparency": {
+              "expr": {
+                "Literal": {
+                  "Value": "0D"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "border": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "color": {
+              "solid": {
+                "color": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "'#D9DEE4'"
+                    }
+                  }
+                }
+              }
+            },
+            "radius": {
+              "expr": {
+                "Literal": {
+                  "Value": "6D"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}
