@@ -1,0 +1,68 @@
+{
+  "name": "medtech_market_share_pipeline",
+  "comment": "Bronze -> Silver -> DQ checks -> Gold. A failed DQ-checks task (any BLOCK-severity check) stops the DAG before Gold is published, so Gold always reflects the last run that passed reconciliation.",
+  "schedule": {
+    "quartz_cron_expression": "0 0 3 * * ?",
+    "timezone_id": "America/New_York",
+    "pause_status": "UNPAUSED"
+  },
+  "tasks": [
+    {
+      "task_key": "bronze_ingest",
+      "notebook_task": { "notebook_path": "/Repos/medtech/notebooks/01_bronze_ingest",
+                         "base_parameters": {"landing_path": "/Volumes/medtech/landing/vendor_sales",
+                                            "checkpoint_path": "/Volumes/medtech/checkpoints/bronze_vendor_sales"} },
+      "job_cluster_key": "medtech_cluster",
+      "timeout_seconds": 1800,
+      "max_retries": 2,
+      "min_retry_interval_millis": 60000
+    },
+    {
+      "task_key": "silver_transform",
+      "depends_on": [{"task_key": "bronze_ingest"}],
+      "notebook_task": { "notebook_path": "/Repos/medtech/notebooks/02_silver_transform" },
+      "job_cluster_key": "medtech_cluster",
+      "timeout_seconds": 1800,
+      "max_retries": 1
+    },
+    {
+      "task_key": "dq_checks",
+      "depends_on": [{"task_key": "silver_transform"}],
+      "notebook_task": { "notebook_path": "/Repos/medtech/notebooks/04_dq_checks" },
+      "job_cluster_key": "medtech_cluster",
+      "timeout_seconds": 900,
+      "max_retries": 0,
+      "comment": "No retries: a BLOCK failure is a data problem, not a transient one. Alerts fire on task failure (email_notifications below)."
+    },
+    {
+      "task_key": "gold_publish",
+      "depends_on": [{"task_key": "dq_checks"}],
+      "notebook_task": { "notebook_path": "/Repos/medtech/notebooks/03_gold_publish" },
+      "job_cluster_key": "medtech_cluster",
+      "timeout_seconds": 900,
+      "max_retries": 1,
+      "comment": "Only runs if dq_checks succeeded, i.e. no BLOCK-severity check failed. Databricks Workflows skip downstream tasks automatically when an upstream task fails."
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "medtech_cluster",
+      "new_cluster": {
+        "spark_version": "15.4.x-photon-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "autoscale": {"min_workers": 2, "max_workers": 8},
+        "spark_conf": {
+          "spark.sql.shuffle.partitions": "auto",
+          "spark.databricks.delta.optimizeWrite.enabled": "true",
+          "spark.databricks.delta.autoCompact.enabled": "true",
+          "spark.sql.adaptive.enabled": "true"
+        }
+      }
+    }
+  ],
+  "email_notifications": {
+    "on_failure": ["data-engineering@medtech.example.com"],
+    "on_success": []
+  },
+  "max_concurrent_runs": 1
+}
