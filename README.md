@@ -1,4 +1,4 @@
-# MedTech Market Performance — BI Consultant take-home case study submission
+# MedTech Market Performance
 
 ## Read this first: about the Power BI file
 
@@ -47,27 +47,3 @@ missing — this is the complete model and report, just in its text-based source
    `nationallead@example.com` (expected results for each are in the validation workbook, tab 4).
 4. **02_Databricks/DESIGN_NOTES.md** and the architecture diagram.
 5. **03_AI_Prompting_Pack/AI_Prompting_Pack.docx** and **04_Submission_Notes/Submission_Notes.docx**.
-
-## Checklist (per the case study's own requirements)
-
-- [x] PBIP opens without missing local paths once `SourceFilePath` is set (only parameter that
-  needs changing — everything else is self-contained).
-- [x] Visuals respond to slicers (Category/Region/Top N/Year/Month/Manufacturer — see PBIR
-  `filterConfig`/`queryState` definitions).
-- [x] Measures reconcile to control totals (27/27 pass, `Validation_Workbook.xlsx` tab 1).
-- [x] RLS tested via View As (expected results for 6 users precomputed, tab 4).
-- [x] Databricks code is readable, runnable, and proven against the same control totals
-  (`tests/test_pipeline_local.py`).
-- [x] AI output contains no unsupported causal claims (explicit prohibition in the prompt,
-  explicit caveat in the sample response, `03_AI_Prompting_Pack` §4).
-- [x] README and assumptions included (this file; `04_Submission_Notes` §2).
-
-## AI assistance disclosure
-
-This entire submission was produced with the assistance of Claude (Anthropic) — data profiling,
-Power Query M, DAX, the PBIR report definition, the PySpark pipeline, and all four written
-documents were AI-drafted, then checked programmatically (control-total reconciliation, a real
-PySpark test run, and JSON-schema validation of every Power BI report file) rather than accepted
-on the strength of the drafting alone. Full disclosure in `04_Submission_Notes/Submission_Notes.docx`
-§7 and `03_AI_Prompting_Pack/AI_Prompting_Pack.docx` §6.
-# MedTech-Market-Performance
