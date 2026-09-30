@@ -20,7 +20,7 @@ with st.sidebar:
 
     provider = st.selectbox("Provider", ["groq", "anthropic"],
                              help="Groq's free tier needs no payment method -- recommended for a quick public demo.")
-    default_model = "llama-3.1-8b-instant" if provider == "groq" else "claude-sonnet-4-5"
+    default_model = "openai/gpt-oss-20b" if provider == "groq" else "claude-sonnet-4-5"
     model = st.text_input("Model", value=default_model)
 
     env_key = os.environ.get("GROQ_API_KEY" if provider == "groq" else "ANTHROPIC_API_KEY", "")
