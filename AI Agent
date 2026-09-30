@@ -1,1 +1,100 @@
+# MedTech Market Performance — AI Agent
+
+A free, open-source chat agent that answers market-share questions grounded in the same
+governed dataset as this project's Power BI model and Databricks pipeline — built directly on
+top of the [AI Prompting Pack](../03_AI_Prompting_Pack/AI_Prompting_Pack.docx)'s structured
+prompt template.
+
+Ask it things like:
+- *"Why did market share change year over year?"*
+- *"Which products contributed most to the share change?"*
+- *"What are the top 10 brands this year?"*
+- *"Can these numbers be trusted?"*
+
+## Why this is safe to ship as a public demo
+
+Every number the agent reports comes from one of six deterministic Python functions
+(`tools/data_tools.py`) — the LLM never writes or runs its own query. Each function encodes
+one specific, auditable business definition (the same ones as the DAX measures and PySpark
+functions elsewhere in this project), reading only from a pre-exported, already-governed
+snapshot of the Gold dataset (`data/*.parquet` — already deduplicated, already uniquely
+mapped, ambiguous/inactive products already excluded). That means:
+
+- The agent **cannot** query raw or quarantined data, because it has no tool that exposes it.
+- The agent **cannot** silently invent a number, because every figure traces to a named tool
+  call — shown to the user via the "Show tool calls" toggle in the sidebar.
+- A hard-coded prohibition in the system prompt (`prompts/system_prompt.md`) stops it from
+  inventing a *cause* for a change — contribution (pp) is explicitly framed as "which," not "why."
+
+`tests/test_tools_reconcile.py` proves the tools themselves are correct — it reconciles every
+control total live and checks the additive contribution property — independent of which LLM
+is answering on top of them.
+
+## Architecture
+
+```
+Person's question
+      |
+      v
+Streamlit chat UI (app.py)
+      |
+      v
+agent.py -- tool-calling loop (Anthropic or Groq, your choice)
+      |
+      v
+tools/data_tools.py -- six deterministic functions, e.g. get_market_share_summary()
+      |
+      v
+data/*.parquet -- pre-exported, already-governed Gold snapshot (no live DB connection needed)
+```
+
+## Run it locally
+
+```bash
+cd ai_agent
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Open the URL Streamlit prints (usually `http://localhost:8501`), pick a provider in the
+sidebar, paste in your own API key, and start asking questions.
+
+### Getting a free API key
+
+| Provider | Free tier | Get a key |
+|---|---|---|
+| **Groq** (recommended) | Generous free rate limits, no payment method required, fast open-weight models (Llama 3.1) | [console.groq.com/keys](https://console.groq.com/keys) |
+| **Anthropic** | Free trial credits for new accounts | [console.anthropic.com](https://console.anthropic.com/) |
+
+Your key is only ever sent directly to that provider's own API from your browser session —
+this app never stores, logs, or transmits it anywhere else, and it's never committed to the
+repo (see `.gitignore`).
+
+## Host it for free (so anyone visiting your GitHub repo can try it live)
+
+### Option A — Streamlit Community Cloud (simplest, recommended)
+1. Push this repo to GitHub (public).
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
+3. Point it at your repo, branch, and set the main file path to `ai_agent/app.py`.
+4. Deploy. It rebuilds automatically on every push. Free tier is sufficient for a personal
+   project — the app itself costs nothing to run since visitors bring their own API key.
+5. Add the live URL to your repo's README / GitHub "About" section so it's one click away.
+
+### Option B — Hugging Face Spaces
+1. Create a new Space → SDK: **Streamlit** (or **Docker**, using the included `Dockerfile`).
+2. Push this folder's contents to the Space's repo (or link your GitHub repo).
+3. Space builds and hosts it automatically, free, at `huggingface.co/spaces/<you>/<space-name>`.
+
+Both options are genuinely $0/month for a project at this scale — no server to pay for, no
+database, no LLM cost to you as the repo owner.
+
+## Extending it
+
+- Add a new capability by writing a new function in `tools/data_tools.py`, adding its schema
+  to `tools/schema.py`, and registering it in `TOOL_FUNCTIONS` — the agent picks it up
+  automatically, no changes needed in `agent.py`.
+- To point this at a *live* Databricks Gold table instead of the bundled parquet snapshot,
+  replace the `_load()` function in `data_tools.py` with a call to `databricks-sql-connector`
+  or a Delta Sharing client — every tool function downstream is unaffected since they only
+  depend on the resulting pandas DataFrame shape.
 
